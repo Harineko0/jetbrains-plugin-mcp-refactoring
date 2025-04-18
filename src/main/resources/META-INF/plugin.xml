@@ -13,5 +13,8 @@
         <postStartupActivity implementation="com.github.harineko0.jetbrainspluginmcprefactoring.startup.MyProjectActivity" />
         <projectService serviceImplementation="com.github.harineko0.jetbrainspluginmcprefactoring.services.CallRefactorService"/>
         <projectService serviceImplementation="com.github.harineko0.jetbrainspluginmcprefactoring.services.McpLifecycleService"/>
+        <notificationGroup id="MCP Server Notifications"
+                           displayType="MCP Server"
+                           key="com.github.harineko0.jetbrainspluginmcprefactoring"/>
     </extensions>
 </idea-plugin>

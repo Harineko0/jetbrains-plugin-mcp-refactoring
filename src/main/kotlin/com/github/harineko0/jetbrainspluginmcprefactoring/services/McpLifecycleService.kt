@@ -17,9 +17,8 @@ class McpLifecycleService(private val project: Project) : Disposable {
     private var ktorServerEngine:  EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine. Configuration>? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val host = "127.0.0.1"
-    private val port = 60051 // As requested
 
-    fun startServer() {
+    fun startServer(port: Int) {
         if (ktorServerEngine != null) {
             thisLogger().warn("MCP server start requested but already running for project ${project.name}")
             return

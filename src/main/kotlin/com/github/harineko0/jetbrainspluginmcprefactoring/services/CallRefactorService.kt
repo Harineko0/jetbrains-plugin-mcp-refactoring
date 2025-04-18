@@ -298,7 +298,7 @@ class CallRefactorService(private val project: Project) {
                     val line = document.getLineNumber(cand.textOffset) + 1
                     println("  [$index] Offset: ${cand.textOffset}, Line: $line, Text: ${cand.text}")
                 }
-                return@compute null // Cannot determine unique element
+                return@compute candidates.first()
             }
         }
     }
