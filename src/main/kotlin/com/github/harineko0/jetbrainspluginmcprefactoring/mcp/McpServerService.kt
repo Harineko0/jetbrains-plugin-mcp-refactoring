@@ -1,10 +1,7 @@
 package com.github.harineko0.jetbrainspluginmcprefactoring.mcp
 
-import com.intellij.openapi.components.Service
-import com.intellij.openapi.project.Project
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
@@ -17,13 +14,23 @@ import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectori
 import com.intellij.refactoring.rename.RenameUtil
 import com.intellij.refactoring.safeDelete.SafeDeleteHandler
 import com.intellij.usageView.UsageInfo
-import io.github.modelcontextprotocol.protocol.*
-import io.github.modelcontextprotocol.server.McpConnection
-import io.github.modelcontextprotocol.server.McpServer
-import io.github.modelcontextprotocol.server.McpServerOptions
+// MCP SDK Imports - Updated based on README
+import io.modelcontextprotocol.kotlin.sdk.*
+import io.modelcontextprotocol.kotlin.sdk.GetPromptResult
+import io.modelcontextprotocol.kotlin.sdk.Implementation
+import io.modelcontextprotocol.kotlin.sdk.PromptArgument
+import io.modelcontextprotocol.kotlin.sdk.PromptMessage
+import io.modelcontextprotocol.kotlin.sdk.Role
+import io.modelcontextprotocol.kotlin.sdk.ServerCapabilities
+import io.modelcontextprotocol.kotlin.sdk.Tool
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
+import io.modelcontextprotocol.kotlin.sdk.server.SseServerTransport
+import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
+import io.modelcontextprotocol.kotlin.sdk.server.mcp
+// ---
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -53,7 +60,7 @@ data class DeleteInput(
 class McpServerService(private val project: Project, private val scope: CoroutineScope) {
 
     private val logger = Logger.getLogger(McpServerService::class.java.name)
-    private var mcpServer: McpServer? = null
+    private var server: Server? = null // Renamed from mcpServer
     private val gson = Gson()
 
     init {
@@ -64,15 +71,25 @@ class McpServerService(private val project: Project, private val scope: Coroutin
     private fun startServer() {
         scope.launch(Dispatchers.IO) {
             try {
-                // TODO: Configure server options (port, etc.)
-                val options = McpServerOptions(port = 0) // Use port 0 to auto-assign
-                mcpServer = McpServer(options)
+                // Define server info and capabilities
+                val serverInfo = Implementation(
+                    name = "jetbrains-refactor-server",
+                    version = "0.1.0" // TODO: Get version dynamically?
+                )
+                val capabilities = ServerCapabilities(
+                    tools = ServerCapabilities.Tools(listChanged = true) // Allow dynamic tool registration
+                )
+                val options = ServerOptions(
+                    capabilities = capabilities
+                )
+
+                server = Server(serverInfo = serverInfo, options = options) // Use updated classes
 
                 // Define and register MCP tools for refactoring
                 registerRefactoringTools()
 
-                mcpServer?.start()
-                val actualPort = mcpServer?.getPort()
+                server?
+                val actualPort = server?.getPort()
                 logger.info("MCP Server started for project ${project.name} on port $actualPort")
 
                 // TODO: How to communicate the port back or make it discoverable?
@@ -86,34 +103,34 @@ class McpServerService(private val project: Project, private val scope: Coroutin
     }
 
     private fun registerRefactoringTools() {
-        val server = mcpServer ?: return logger.severe("MCP Server not initialized, cannot register tools.")
+        val currentServer = server ?: return logger.severe("MCP Server not initialized, cannot register tools.") // Use renamed server variable
 
         // --- Rename Tool ---
-        server.defineTool(
+        currentServer.defineTool( // Use renamed server variable
             ToolDefinition(
                 name = "refactor_rename",
-                description = "Renames a Dart element at a specific file offset.",
+                description = "Renames an element at a specific file offset.", // Made description generic
                 inputSchema = gson.toJsonTree(RenameInput::class.java).asJsonObject // Basic schema from data class
             )
-        ) { params: JsonObject, _: McpConnection -> handleRename(params) }
+        ) { params: JsonObject, _: Connection -> handleRename(params) } // Updated Connection type
 
         // --- Move Tool ---
-        server.defineTool(
+        currentServer.defineTool( // Use renamed server variable
             ToolDefinition(
                 name = "refactor_move",
                 description = "Moves a file or directory.",
                 inputSchema = gson.toJsonTree(MoveInput::class.java).asJsonObject
             )
-        ) { params: JsonObject, _: McpConnection -> handleMove(params) }
+        ) { params: JsonObject, _: Connection -> handleMove(params) } // Updated Connection type
 
         // --- Delete Tool ---
-        server.defineTool(
+        currentServer.defineTool( // Use renamed server variable
             ToolDefinition(
                 name = "refactor_delete",
                 description = "Safely deletes a file or directory.",
                 inputSchema = gson.toJsonTree(DeleteInput::class.java).asJsonObject
             )
-        ) { params: JsonObject, _: McpConnection -> handleDelete(params) }
+        ) { params: JsonObject, _: Connection -> handleDelete(params) } // Updated Connection type
 
         logger.info("Registered MCP refactoring tools.")
     }
@@ -265,27 +282,8 @@ class McpServerService(private val project: Project, private val scope: Coroutin
 
      private fun findElementAtOffset(virtualFile: VirtualFile, offset: Int): PsiElement? {
         val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return null
-        // Consider adding language check: if (psiFile.language != DartLanguage.INSTANCE) return null
+        // Find the element at the specified offset, regardless of language.
         return psiFile.findElementAt(offset)
-    }
-
-
-    // --- Other Handlers (Still Placeholders) ---
-
-    private suspend fun handleMove(params: JsonObject): ToolResult {
-         return try {
-            val input = gson.fromJson(params, MoveInput::class.java)
-            logger.info("Received move request: $input")
-            // TODO: Implement actual move logic (MoveFilesOrDirectoriesUtil/Processor)
-            // Must run on EDT within a WriteCommandAction
-             ToolResult(JsonObject().apply { addProperty("status", "success - placeholder") })
-         } catch (e: Exception) {
-             logger.log(Level.SEVERE, "Error handling move request: ${e.message}", e)
-             ToolResult(JsonObject().apply {
-                 addProperty("status", "error")
-                 addProperty("message", e.message ?: "Unknown error")
-             })
-         }
     }
 
      private suspend fun handleDelete(params: JsonObject): ToolResult {
@@ -358,7 +356,7 @@ class McpServerService(private val project: Project, private val scope: Coroutin
     fun dispose() {
         logger.info("Disposing McpServerService for project: ${project.name}")
         scope.launch(Dispatchers.IO) {
-            mcpServer?.stop()
+            server?.stop() // Use renamed server variable
             logger.info("MCP Server stopped for project ${project.name}")
         }
         // Cancel the scope to clean up coroutines
