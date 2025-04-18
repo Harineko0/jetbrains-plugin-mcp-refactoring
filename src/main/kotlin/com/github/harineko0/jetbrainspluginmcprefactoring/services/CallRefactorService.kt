@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.*
 import com.intellij.psi.search.searches.ReferencesSearch
@@ -12,6 +13,17 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.refactoring.RefactoringFactory
 import java.nio.file.Paths
 import kotlin.math.abs
+
+
+/**
+ * Data class to hold information about a single usage found.
+ */
+data class UsageInfo(
+    val filePath: String,
+    val lineNumber: Int,
+    val columnNumber: Int,
+    val usageTextSnippet: String // A small snippet of the line containing the usage
+)
 
 @Service(Service.Level.PROJECT)
 class CallRefactorService(private val project: Project) {
@@ -102,31 +114,74 @@ class CallRefactorService(private val project: Project) {
         return false // Return false until implemented
     }
 
-    fun findUsage(filePath: String, offset: Int): Collection<PsiReference> {
-        var usages: Collection<PsiReference>? = null
-        ApplicationManager.getApplication().invokeAndWait {
-            WriteCommandAction.runWriteCommandAction(project) {
-                val psiFile = findPsiFile(filePath) ?: run {
-                    println("Error: Could not find PsiFile for path: $filePath")
-                    return@runWriteCommandAction // Use qualified return
-                }
-                val element = findElementAt(psiFile, offset) ?: run {
-                    println("Error: Could not find element at offset $offset in file: $filePath")
-                    return@runWriteCommandAction // Use qualified return
-                }
+    /**
+     * Finds usages of a PSI element identified by its name and optionally its line number.
+     *
+     * @param filePath The absolute path to the file containing the element definition.
+     * @param symbolName The name of the symbol (element) to find usages for.
+     * @param lineNumber Optional: The approximate line number to help locate the symbol definition.
+     * @return A list of UsageInfo objects representing the found usages, or an empty list if none are found or an error occurs.
+     */
+    fun findUsage(filePath: String, symbolName: String, lineNumber: Int?): List<UsageInfo> {
+        // Use ReadAction as we are only reading information, not writing
+        return ReadAction.compute<List<UsageInfo>, Throwable> {
+            val psiFile = findPsiFile(filePath) ?: run {
+                println("Error: Could not find PsiFile for path: $filePath")
+                return@compute emptyList<UsageInfo>()
+            }
 
-                try {
-                    println("Searching usages of ${element.text}")
-                    usages = ReferencesSearch.search(element).findAll();
-                    println("Search successful.")
-                } catch (e: Exception) {
-                    // Log the exception for better debugging
-                    println("Rename failed: ${e.message}")
-                    e.printStackTrace() // Print stack trace for detailed error info
+            val element = findElementByNameAndLine(psiFile, symbolName, lineNumber) ?: run {
+                println("Error: Could not find unique element with name '$symbolName' ${if (lineNumber != null) "near line $lineNumber" else ""} in file: $filePath to find usages for.")
+                return@compute emptyList<UsageInfo>()
+            }
+
+            println("Searching usages of '${element.text}' defined in $filePath")
+            val usages = ReferencesSearch.search(element).findAll()
+            println("Found ${usages.size} usages.")
+
+            val usageInfos = mutableListOf<UsageInfo>()
+            val documentManager = PsiDocumentManager.getInstance(project)
+
+            for (reference in usages) {
+                val usageElement = reference.element
+                val usageFile = usageElement.containingFile
+                val usageVirtualFile = usageFile?.virtualFile
+                val usageFilePath = usageVirtualFile?.path ?: "Unknown File"
+                val document = usageFile?.let { documentManager.getDocument(it) }
+
+                if (document != null) {
+                    val offset = usageElement.textRange.startOffset
+                    val line = document.getLineNumber(offset) + 1 // 0-based to 1-based
+                    val col = offset - document.getLineStartOffset(line - 1) + 1 // Calculate column
+
+                    // Get a snippet of the line containing the usage
+                    val lineStartOffset = document.getLineStartOffset(line - 1)
+                    val lineEndOffset = document.getLineEndOffset(line - 1)
+                    val lineText = document.getText(TextRange(lineStartOffset, lineEndOffset))
+
+                    usageInfos.add(
+                        UsageInfo(
+                            filePath = usageFilePath,
+                            lineNumber = line,
+                            columnNumber = col,
+                            usageTextSnippet = lineText.trim() // Trim whitespace from the snippet
+                        )
+                    )
+                } else {
+                    println("Warning: Could not get document for usage in file: $usageFilePath")
+                    // Add usage with less info if document is unavailable
+                    usageInfos.add(
+                        UsageInfo(
+                            filePath = usageFilePath,
+                            lineNumber = -1, // Indicate unknown line/col
+                            columnNumber = -1,
+                            usageTextSnippet = usageElement.text ?: "N/A"
+                        )
+                    )
                 }
             }
-        }
-        return usages ?: emptyList()
+            usageInfos
+        } // End ReadAction.compute
     }
 
     /**

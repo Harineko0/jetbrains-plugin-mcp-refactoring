@@ -104,6 +104,32 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             handleDelete(request)
         }
 
+        // --- Add Find Usages Tool ---
+        serverInstance.addTool(
+            name = "find_usages", // Consistent naming convention
+            description = "Finds all usages of an element (symbol) identified by its name and optionally line number.",
+            inputSchema = Tool.Input(
+                properties = buildJsonObject {
+                    putJsonObject("filePath") {
+                        put("type", "string")
+                        put("description", "Absolute path to the file where the element is defined.")
+                    }
+                    putJsonObject("symbolName") {
+                        put("type", "string")
+                        put("description", "The name of the element (symbol) to find usages for.")
+                    }
+                    putJsonObject("lineNumber") {
+                        put("type", "integer")
+                        put("description", "Optional: The approximate line number where the symbol definition is located.")
+                    }
+                },
+                required = listOf("filePath", "symbolName") // Line number is optional
+            )
+        ) { request ->
+            handleFindUsages(request) // New handler function
+        }
+
+
         thisLogger().info("MCP Server configured with tools.")
         return serverInstance
     }
@@ -192,6 +218,49 @@ class McpServer(private val project: Project) { // Port is likely not needed her
              CallToolResult(content = listOf(TextContent("Error: Failed to process delete request: ${e.message}")))
          }
     }
+
+    private fun handleFindUsages(request: CallToolRequest): CallToolResult {
+        return try {
+            val args = request.arguments
+            val filePath = args["filePath"]?.jsonPrimitive?.contentOrNull
+            val symbolName = args["symbolName"]?.jsonPrimitive?.contentOrNull
+            val lineNumber = args["lineNumber"]?.jsonPrimitive?.intOrNull
+
+            if (filePath == null || symbolName == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, symbolName).")))
+            }
+
+            thisLogger().info("Handling find usages: filePath=$filePath, symbolName=$symbolName, lineNumber=$lineNumber")
+            val usages = callRefactorService.findUsage(filePath, symbolName, lineNumber)
+
+            if (usages.isNotEmpty()) {
+                // Format the usages into a readable string or structured JSON
+                val formattedUsages = usages.joinToString("\n") { usage ->
+                    "- ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}"
+                }
+                val resultText = "Found ${usages.size} usage(s) for '$symbolName':\n$formattedUsages"
+                CallToolResult(content = listOf(TextContent(resultText)))
+                // Alternatively, return structured JSON:
+                // val jsonUsages = buildJsonArray {
+                //     usages.forEach { usage ->
+                //         addJsonObject {
+                //             put("filePath", usage.filePath)
+                //             put("lineNumber", usage.lineNumber)
+                //             put("columnNumber", usage.columnNumber)
+                //             put("snippet", usage.usageTextSnippet)
+                //         }
+                //     }
+                // }
+                // CallToolResult(content = listOf(JsonContent(jsonUsages)))
+            } else {
+                CallToolResult(content = listOf(TextContent("No usages found for '$symbolName'.")))
+            }
+        } catch (e: Exception) {
+            thisLogger().error("Error processing find usages request: ${e.message}", e)
+            CallToolResult(content = listOf(TextContent("Error: Failed to process find usages request: ${e.message}")))
+        }
+    }
+
 
     // Note: The start/stop logic is removed from here.
     // The lifecycle (creation/disposal) will be managed by MyToolWindowFactory.
