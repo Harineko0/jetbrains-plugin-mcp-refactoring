@@ -38,6 +38,12 @@ dependencies {
     // MCP Kotlin SDK
     implementation("io.modelcontextprotocol:kotlin-sdk:0.4.0")
 
+    // Ktor Server Dependencies for SSE
+    val ktorVersion = "2.3.10" // Define Ktor version
+    implementation("io.ktor:ktor-server-core-jvm:$ktorVersion")
+    implementation("io.ktor:ktor-server-cio-jvm:$ktorVersion") // CIO engine
+    implementation("io.ktor:ktor-server-sse-jvm:$ktorVersion") // SSE support
+
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
         create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
