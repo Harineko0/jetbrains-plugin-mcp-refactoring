@@ -32,52 +32,48 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         // --- Add Rename Tool ---
         serverInstance.addTool(
             name = "rename_element",
-            description = "Renames an element (variable, function, class, etc.) identified by its name and optionally line number.",
+            description = "Renames an element (variable, function, class, etc.) identified by its position.",
             inputSchema = Tool.Input(
                 properties = buildJsonObject {
                     putJsonObject("filePath") {
                         put("type", "string")
                         put("description", "Absolute path to the file.")
                     }
-                    putJsonObject("symbolName") { // Changed from offset
+                    putJsonObject("codeToSymbol") { // Changed from symbolName/lineNumber
                         put("type", "string")
-                        put("description", "The name of the element (symbol) to rename.")
-                    }
-                    putJsonObject("lineNumber") { // Added lineNumber
-                        put("type", "integer")
-                        put("description", "Optional: The approximate line number where the symbol is located to help disambiguate.")
+                        put("description", "The code from the start of the file up to the symbol to rename.")
                     }
                     putJsonObject("newName") {
                         put("type", "string")
                         put("description", "The new name for the element.")
                     }
                 },
-                required = listOf("filePath", "symbolName", "newName") // Updated required list
+                required = listOf("filePath", "codeToSymbol", "newName") // Updated required list
             )
         ) { request ->
-            handleRename(request) // Handler remains the same, logic inside changes
+            handleRename(request)
         }
 
         // --- Add Move Tool ---
         serverInstance.addTool(
             name = "move_element",
-            description = "Moves an element (likely a file or class) to a different directory.",
+            description = "Moves an element (likely a file or class) identified by its position to a different directory.",
             inputSchema = Tool.Input(
                  properties = buildJsonObject {
                     putJsonObject("filePath") {
                         put("type", "string")
                         put("description", "Absolute path to the file containing the element to move.")
                     }
-                    putJsonObject("offset") {
-                        put("type", "integer")
-                        put("description", "Zero-based offset of the element to move (often the start of the file/class definition).")
+                    putJsonObject("codeToSymbol") { // Changed from offset
+                        put("type", "string")
+                        put("description", "The code from the start of the file up to the symbol to move.")
                     }
                     putJsonObject("targetDirectoryPath") {
                         put("type", "string")
                         put("description", "Absolute path to the target directory.")
                     }
                 },
-                required = listOf("filePath", "offset", "targetDirectoryPath")
+                required = listOf("filePath", "codeToSymbol", "targetDirectoryPath") // Updated required list
             )
         ) { request ->
             handleMove(request)
@@ -86,19 +82,19 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         // --- Add Delete Tool ---
         serverInstance.addTool(
             name = "delete_element",
-            description = "Deletes an element (variable, function, class, file, etc.) at a specific location.",
+            description = "Deletes an element (variable, function, class, file, etc.) identified by its position.",
             inputSchema = Tool.Input(
                  properties = buildJsonObject {
                     putJsonObject("filePath") {
                         put("type", "string")
                         put("description", "Absolute path to the file containing the element.")
                     }
-                    putJsonObject("offset") {
-                        put("type", "integer")
-                        put("description", "Zero-based offset of the element to delete within the file.")
+                    putJsonObject("codeToSymbol") { // Changed from offset
+                        put("type", "string")
+                        put("description", "The code from the start of the file up to the symbol to delete.")
                     }
                 },
-                required = listOf("filePath", "offset")
+                required = listOf("filePath", "codeToSymbol") // Updated required list
             )
         ) { request ->
             handleDelete(request)
@@ -107,22 +103,22 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         // --- Add Find Usages Tool ---
         serverInstance.addTool(
             name = "find_usages", // Consistent naming convention
-            description = "Finds all usages of an element (symbol) identified by its name and optionally line number.",
+            description = "Finds all usages of an element (symbol) identified by its position.",
             inputSchema = Tool.Input(
                 properties = buildJsonObject {
                     putJsonObject("filePath") {
                         put("type", "string")
                         put("description", "Absolute path to the file where the element is defined.")
                     }
-                    putJsonObject("codeToSymbol") { // Changed from symbolName
+                    putJsonObject("codeToSymbol") {
                         put("type", "string")
-                        put("description", "The code of <filePath> from top to position of the symbol.")
+                        put("description", "The code from the start of the file up to the symbol to find usages for.")
                     }
                 },
-                required = listOf("filePath", "symbolName") // Line number is optional
+                required = listOf("filePath", "codeToSymbol") // Updated required list
             )
         ) { request ->
-            handleFindUsages(request) // New handler function
+            handleFindUsages(request)
         }
 
 
@@ -137,22 +133,23 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         return try {
             val args = request.arguments
             val filePath = args["filePath"]?.jsonPrimitive?.contentOrNull
-            val symbolName = args["symbolName"]?.jsonPrimitive?.contentOrNull // Get symbolName
-            val lineNumber = args["lineNumber"]?.jsonPrimitive?.intOrNull // Get optional lineNumber
+            val codeToSymbol = args["codeToSymbol"]?.jsonPrimitive?.contentOrNull // Get codeToSymbol
             val newName = args["newName"]?.jsonPrimitive?.contentOrNull
 
             // Updated validation
-            if (filePath == null || symbolName == null || newName == null) {
-                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, symbolName, newName).")))
+            if (filePath == null || codeToSymbol == null || newName == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, codeToSymbol, newName).")))
             }
 
             // Updated logging
-            thisLogger().info("Handling rename: filePath=$filePath, symbolName=$symbolName, lineNumber=$lineNumber, newName=$newName")
+            thisLogger().info("Handling rename: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length}), newName=$newName")
             // Updated service call
-            val success = callRefactorService.renameElement(project, filePath, symbolName, lineNumber, newName) // Pass project and new args
+            val success = callRefactorService.renameElement(filePath, codeToSymbol, newName) // Pass new args
 
             if (success) {
-                CallToolResult(content = listOf(TextContent("Element '$symbolName' renamed successfully to '$newName'.")))
+                // Use codeToSymbol in message for context, maybe truncate if too long
+                val context = if (codeToSymbol.length > 50) codeToSymbol.takeLast(50) + "..." else codeToSymbol
+                CallToolResult(content = listOf(TextContent("Element near '$context' renamed successfully to '$newName'.")))
             } else {
                 CallToolResult(content = listOf(TextContent("Error: Rename operation failed. Check IDE logs for details.")))
             }
@@ -166,22 +163,23 @@ class McpServer(private val project: Project) { // Port is likely not needed her
          return try {
             val args = request.arguments
             val filePath = args["filePath"]?.jsonPrimitive?.contentOrNull
-            val offset = args["offset"]?.jsonPrimitive?.intOrNull
+            val codeToSymbol = args["codeToSymbol"]?.jsonPrimitive?.contentOrNull // Get codeToSymbol
             val targetDirectoryPath = args["targetDirectoryPath"]?.jsonPrimitive?.contentOrNull
 
-             if (filePath == null || offset == null || targetDirectoryPath == null) {
-                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, offset, targetDirectoryPath).")))
+             // Updated validation
+             if (filePath == null || codeToSymbol == null || targetDirectoryPath == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, codeToSymbol, targetDirectoryPath).")))
             }
 
-            thisLogger().info("Handling move: filePath=$filePath, offset=$offset, targetDir=$targetDirectoryPath")
-            // TODO: Implement the actual move logic call in CallRefactorService
-            val success = callRefactorService.moveElement(filePath, offset, targetDirectoryPath)
+            // Updated logging
+            thisLogger().info("Handling move: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length}), targetDir=$targetDirectoryPath")
+            // Updated service call
+            val success = callRefactorService.moveElement(filePath, codeToSymbol, targetDirectoryPath)
 
             if (success) {
                  CallToolResult(content = listOf(TextContent("Element moved successfully to '$targetDirectoryPath'.")))
             } else {
-                 // Provide more specific feedback once implemented
-                 CallToolResult(content = listOf(TextContent("Error: Move operation failed (or not yet implemented). Check IDE logs.")))
+                 CallToolResult(content = listOf(TextContent("Error: Move operation failed. Check IDE logs.")))
             }
          } catch (e: Exception) {
              thisLogger().error("Error processing move request: ${e.message}", e)
@@ -193,21 +191,22 @@ class McpServer(private val project: Project) { // Port is likely not needed her
          return try {
             val args = request.arguments
             val filePath = args["filePath"]?.jsonPrimitive?.contentOrNull
-            val offset = args["offset"]?.jsonPrimitive?.intOrNull
+            val codeToSymbol = args["codeToSymbol"]?.jsonPrimitive?.contentOrNull // Get codeToSymbol
 
-             if (filePath == null || offset == null) {
-                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, offset).")))
+             // Updated validation
+             if (filePath == null || codeToSymbol == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, codeToSymbol).")))
             }
 
-            thisLogger().info("Handling delete: filePath=$filePath, offset=$offset")
-            // TODO: Implement the actual delete logic call in CallRefactorService
-            val success = callRefactorService.deleteElement(filePath, offset)
+            // Updated logging
+            thisLogger().info("Handling delete: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length})")
+            // Updated service call
+            val success = callRefactorService.deleteElement(filePath, codeToSymbol)
 
             if (success) {
                  CallToolResult(content = listOf(TextContent("Element deleted successfully.")))
             } else {
-                 // Provide more specific feedback once implemented
-                 CallToolResult(content = listOf(TextContent("Error: Delete operation failed (or not yet implemented). Check IDE logs.")))
+                 CallToolResult(content = listOf(TextContent("Error: Delete operation failed. Check IDE logs.")))
             }
          } catch (e: Exception) {
              thisLogger().error("Error processing delete request: ${e.message}", e)
@@ -221,11 +220,14 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             val filePath = args["filePath"]?.jsonPrimitive?.contentOrNull
             val codeToSymbol = args["codeToSymbol"]?.jsonPrimitive?.contentOrNull
 
+            // Validation (already correct)
             if (filePath == null || codeToSymbol == null) {
-                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, symbolName).")))
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, codeToSymbol).")))
             }
 
-            thisLogger().info("Handling find usages: filePath=$filePath, symbolName=$codeToSymbol")
+            // Logging (already correct)
+            thisLogger().info("Handling find usages: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length})")
+            // Service call (already correct)
             val usages = callRefactorService.findUsage(filePath, codeToSymbol)
 
             if (usages.isNotEmpty()) {
@@ -233,7 +235,8 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 val formattedUsages = usages.joinToString("\n") { usage ->
                     "- ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}"
                 }
-                val resultText = "Found ${usages.size} usage(s) for '$codeToSymbol':\n$formattedUsages"
+                // Use a more generic message as codeToSymbol might be long
+                val resultText = "Found ${usages.size} usage(s):\n$formattedUsages"
                 CallToolResult(content = listOf(TextContent(resultText)))
                 // Alternatively, return structured JSON:
                 // val jsonUsages = buildJsonArray {
@@ -248,18 +251,11 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 // }
                 // CallToolResult(content = listOf(JsonContent(jsonUsages)))
             } else {
-                CallToolResult(content = listOf(TextContent("No usages found for '$codeToSymbol'.")))
+                CallToolResult(content = listOf(TextContent("No usages found.")))
             }
         } catch (e: Exception) {
             thisLogger().error("Error processing find usages request: ${e.message}", e)
             CallToolResult(content = listOf(TextContent("Error: Failed to process find usages request: ${e.message}")))
         }
     }
-
-
-    // Note: The start/stop logic is removed from here.
-    // The lifecycle (creation/disposal) will be managed by MyToolWindowFactory.
-    // The server doesn't need an explicit start/connect call in this context,
-    // as it's not using a standard transport like Stdio or SSE.
-    // The tools are registered during configuration.
 }
