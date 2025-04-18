@@ -9,6 +9,8 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiManager
+import com.intellij.psi.PsiReference
+import com.intellij.psi.search.searches.ReferencesSearch
 import java.nio.file.Paths
 
 @Service(Service.Level.PROJECT)
@@ -91,6 +93,33 @@ class CallRefactorService(private val project: Project) {
         println("Delete element: filePath=$filePath, offset=$offset")
         // Placeholder implementation
         return false // Return false until implemented
+    }
+
+    fun findUsage(filePath: String, offset: Int): Collection<PsiReference> {
+        var usages: Collection<PsiReference>? = null
+        ApplicationManager.getApplication().invokeAndWait {
+            WriteCommandAction.runWriteCommandAction(project) {
+                val psiFile = findPsiFile(filePath) ?: run {
+                    println("Error: Could not find PsiFile for path: $filePath")
+                    return@runWriteCommandAction // Use qualified return
+                }
+                val element = findElementAt(psiFile, offset) ?: run {
+                    println("Error: Could not find element at offset $offset in file: $filePath")
+                    return@runWriteCommandAction // Use qualified return
+                }
+
+                try {
+                    println("Searching usages of ${element.text}")
+                    usages = ReferencesSearch.search(element).findAll();
+                    println("Search successful.")
+                } catch (e: Exception) {
+                    // Log the exception for better debugging
+                    println("Rename failed: ${e.message}")
+                    e.printStackTrace() // Print stack trace for detailed error info
+                }
+            }
+        }
+        return usages ?: emptyList()
     }
 
     /**

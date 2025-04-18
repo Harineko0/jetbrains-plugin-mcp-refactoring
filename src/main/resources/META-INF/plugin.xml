@@ -11,6 +11,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow factoryClass="com.github.harineko0.jetbrainspluginmcprefactoring.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
         <postStartupActivity implementation="com.github.harineko0.jetbrainspluginmcprefactoring.startup.MyProjectActivity" />
-        <projectService serviceImplementation="com.github.harineko0.jetbrainspluginmcprefactoring.mcp.McpServerService"/>
+        <projectService serviceImplementation="com.github.harineko0.jetbrainspluginmcprefactoring.services.CallRefactorService"/>
+        <projectService serviceImplementation="com.github.harineko0.jetbrainspluginmcprefactoring.services.McpLifecycleService"/>
     </extensions>
 </idea-plugin>
