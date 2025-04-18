@@ -32,26 +32,30 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         // --- Add Rename Tool ---
         serverInstance.addTool(
             name = "rename_element",
-            description = "Renames an element (variable, function, class, etc.) at a specific location in a file.",
+            description = "Renames an element (variable, function, class, etc.) identified by its name and optionally line number.",
             inputSchema = Tool.Input(
                 properties = buildJsonObject {
                     putJsonObject("filePath") {
                         put("type", "string")
                         put("description", "Absolute path to the file.")
                     }
-                    putJsonObject("offset") {
+                    putJsonObject("symbolName") { // Changed from offset
+                        put("type", "string")
+                        put("description", "The name of the element (symbol) to rename.")
+                    }
+                    putJsonObject("lineNumber") { // Added lineNumber
                         put("type", "integer")
-                        put("description", "Zero-based offset of the element to rename within the file.")
+                        put("description", "Optional: The approximate line number where the symbol is located to help disambiguate.")
                     }
                     putJsonObject("newName") {
                         put("type", "string")
                         put("description", "The new name for the element.")
                     }
                 },
-                required = listOf("filePath", "offset", "newName")
+                required = listOf("filePath", "symbolName", "newName") // Updated required list
             )
         ) { request ->
-            handleRename(request)
+            handleRename(request) // Handler remains the same, logic inside changes
         }
 
         // --- Add Move Tool ---
@@ -111,18 +115,22 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         return try {
             val args = request.arguments
             val filePath = args["filePath"]?.jsonPrimitive?.contentOrNull
-            val offset = args["offset"]?.jsonPrimitive?.intOrNull
+            val symbolName = args["symbolName"]?.jsonPrimitive?.contentOrNull // Get symbolName
+            val lineNumber = args["lineNumber"]?.jsonPrimitive?.intOrNull // Get optional lineNumber
             val newName = args["newName"]?.jsonPrimitive?.contentOrNull
 
-            if (filePath == null || offset == null || newName == null) {
-                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, offset, newName).")))
+            // Updated validation
+            if (filePath == null || symbolName == null || newName == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, symbolName, newName).")))
             }
 
-            thisLogger().info("Handling rename: filePath=$filePath, offset=$offset, newName=$newName")
-            val success = callRefactorService.renameElement(filePath, offset, newName)
+            // Updated logging
+            thisLogger().info("Handling rename: filePath=$filePath, symbolName=$symbolName, lineNumber=$lineNumber, newName=$newName")
+            // Updated service call
+            val success = callRefactorService.renameElement(project, filePath, symbolName, lineNumber, newName) // Pass project and new args
 
             if (success) {
-                CallToolResult(content = listOf(TextContent("Element renamed successfully to '$newName'.")))
+                CallToolResult(content = listOf(TextContent("Element '$symbolName' renamed successfully to '$newName'.")))
             } else {
                 CallToolResult(content = listOf(TextContent("Error: Rename operation failed. Check IDE logs for details.")))
             }

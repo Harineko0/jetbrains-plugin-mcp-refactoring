@@ -1,1 +1,7 @@
 このプロジェクトは JetBrains/intellij-platform-plugin-template のテンプレートを使用して作成されました.
+
+ディレクトリ構造:
+```
+src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/mcp/McpServer.kt // MCP サーバーの実装
+src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/services/CallRefactorService.kt // IDE の機能を呼び出すサービス
+```
