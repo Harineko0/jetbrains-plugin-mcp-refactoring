@@ -5,6 +5,7 @@
     <vendor>harineko0</vendor>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>Dart</depends>
 
     <resource-bundle>messages.MyBundle</resource-bundle>
 
