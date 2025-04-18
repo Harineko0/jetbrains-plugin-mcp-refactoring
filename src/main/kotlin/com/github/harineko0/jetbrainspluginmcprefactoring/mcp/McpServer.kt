@@ -114,13 +114,9 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                         put("type", "string")
                         put("description", "Absolute path to the file where the element is defined.")
                     }
-                    putJsonObject("symbolName") {
+                    putJsonObject("codeToSymbol") { // Changed from symbolName
                         put("type", "string")
-                        put("description", "The name of the element (symbol) to find usages for.")
-                    }
-                    putJsonObject("lineNumber") {
-                        put("type", "integer")
-                        put("description", "Optional: The approximate line number where the symbol definition is located.")
+                        put("description", "The code of <filePath> from top to position of the symbol.")
                     }
                 },
                 required = listOf("filePath", "symbolName") // Line number is optional
@@ -223,22 +219,21 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         return try {
             val args = request.arguments
             val filePath = args["filePath"]?.jsonPrimitive?.contentOrNull
-            val symbolName = args["symbolName"]?.jsonPrimitive?.contentOrNull
-            val lineNumber = args["lineNumber"]?.jsonPrimitive?.intOrNull
+            val codeToSymbol = args["codeToSymbol"]?.jsonPrimitive?.contentOrNull
 
-            if (filePath == null || symbolName == null) {
+            if (filePath == null || codeToSymbol == null) {
                 return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (filePath, symbolName).")))
             }
 
-            thisLogger().info("Handling find usages: filePath=$filePath, symbolName=$symbolName, lineNumber=$lineNumber")
-            val usages = callRefactorService.findUsage(filePath, symbolName, lineNumber)
+            thisLogger().info("Handling find usages: filePath=$filePath, symbolName=$codeToSymbol")
+            val usages = callRefactorService.findUsage(filePath, codeToSymbol)
 
             if (usages.isNotEmpty()) {
                 // Format the usages into a readable string or structured JSON
                 val formattedUsages = usages.joinToString("\n") { usage ->
                     "- ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}"
                 }
-                val resultText = "Found ${usages.size} usage(s) for '$symbolName':\n$formattedUsages"
+                val resultText = "Found ${usages.size} usage(s) for '$codeToSymbol':\n$formattedUsages"
                 CallToolResult(content = listOf(TextContent(resultText)))
                 // Alternatively, return structured JSON:
                 // val jsonUsages = buildJsonArray {
@@ -253,7 +248,7 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 // }
                 // CallToolResult(content = listOf(JsonContent(jsonUsages)))
             } else {
-                CallToolResult(content = listOf(TextContent("No usages found for '$symbolName'.")))
+                CallToolResult(content = listOf(TextContent("No usages found for '$codeToSymbol'.")))
             }
         } catch (e: Exception) {
             thisLogger().error("Error processing find usages request: ${e.message}", e)

@@ -1,6 +1,7 @@
 package com.github.harineko0.jetbrainspluginmcprefactoring.toolWindow
 
 import com.github.harineko0.jetbrainspluginmcprefactoring.MyBundle
+import com.github.harineko0.jetbrainspluginmcprefactoring.services.CallRefactorService // Import CallRefactorService
 import com.github.harineko0.jetbrainspluginmcprefactoring.services.McpLifecycleService
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -11,17 +12,17 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
+import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
+import java.awt.Component.LEFT_ALIGNMENT
 import java.awt.FlowLayout
 import javax.swing.BoxLayout
+import javax.swing.JButton
 import javax.swing.JPanel
 import javax.swing.JToggleButton
 
 class MyToolWindowFactory : ToolWindowFactory {
-
-    // Define a notification group ID
-    private val NOTIFICATION_GROUP_ID = "MCP Server Notifications"
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         // Register the notification group if it doesn't exist (optional, but good practice)
@@ -38,7 +39,8 @@ class MyToolWindowFactory : ToolWindowFactory {
     // Pass project to the constructor
     class MyToolWindow(toolWindow: ToolWindow, private val project: Project) {
 
-        private val service = project.service<McpLifecycleService>() // Get service from passed project
+        private val lifecycleService = project.service<McpLifecycleService>() // Rename for clarity
+        private val callRefactorService = project.service<CallRefactorService>() // Get CallRefactorService instance
 
         fun getContent(): JBPanel<*> {
             // Main panel with vertical layout
@@ -67,29 +69,25 @@ class MyToolWindowFactory : ToolWindowFactory {
                 add(JBLabel(MyBundle.message("mcpServer", "MCP Server:"))) // Reuse existing key
 
                 val toggleButton = JToggleButton(MyBundle.message("start", "Start")).apply {
-                    // Set initial state based on whether the server might already be running (if possible)
-                    // For simplicity, assume it starts as "Off" (not selected)
-                    isSelected = service.isServerRunning() // Assuming McpLifecycleService has isServerRunning()
+                    // Set initial state based on whether the server might already be running
+                    isSelected = lifecycleService.isServerRunning() // Use lifecycleService
 
                     addItemListener { e ->
                         val button = e.source as JToggleButton
                         if (button.isSelected) {
                             button.text = MyBundle.message("stop", "Stop")
                             thisLogger().info("Starting MCP server...")
-                            // val port = portField.text.toIntOrNull() ?: 8080 // Get port if needed later
-                            service.startServer(port) // Pass port if service is updated
-                            // TODO: Ideally, startServer should return status or use a callback
+                            lifecycleService.startServer(port) // Use lifecycleService
                             thisLogger().info("MCP server start initiated.")
-                            // Show notification (assuming start is successful for now)
-//                            showNotification(project,"MCP Server Started", NotificationType.INFORMATION)
+                            // Show notification
+                            showNotification(project,"MCP Server Started", NotificationType.INFORMATION)
                         } else {
                             button.text = MyBundle.message("start", "Start")
                             thisLogger().info("Stopping MCP server...")
-                            service.stopServer() // Call the stop method
-                            // TODO: Ideally, stopServer should return status or use a callback
+                            lifecycleService.stopServer() // Use lifecycleService
                             thisLogger().info("MCP server stop initiated.")
-                             // Show notification (assuming stop is successful for now)
-//                            showNotification(project,"MCP Server Stopped", NotificationType.INFORMATION)
+                             // Show notification
+                            showNotification(project,"MCP Server Stopped", NotificationType.INFORMATION)
                         }
                     }
                 }
@@ -98,8 +96,71 @@ class MyToolWindowFactory : ToolWindowFactory {
             }
             mainPanel.add(controlPanel)
 
+
+            // --- Panel for Find Usages ---
+            val findUsagePanel = JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS) // Vertical layout for this section
+                alignmentX = LEFT_ALIGNMENT // Align this panel to the left within mainPanel
+
+                add(JBLabel("Find Usages:"))
+
+                val filePathField = JBTextField("", 30)
+                val codeToSymbolField = JBTextArea(10, 4)
+
+                // File Path Row
+                val filePathPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+                    add(JBLabel("File Path:"))
+                    add(filePathField)
+                }
+                add(filePathPanel)
+
+                // Symbol Name Row
+                val symbolPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+                    add(JBLabel("Code to Symbol:"))
+                    add(codeToSymbolField)
+                }
+
+                // Button Row
+                val buttonPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+                    val findButton = JButton("Find Usages").apply {
+                        addActionListener {
+                            val filePath = filePathField.text.trim()
+                            val codeToSymbol = codeToSymbolField.text.trim()
+
+                            if (filePath.isNotEmpty() && codeToSymbol.isNotEmpty()) {
+                                thisLogger().info("Manual Find Usages: File='$filePath', Symbol='$codeToSymbol")
+                                try {
+                                    // Execute findUsage - consider running in background if potentially long
+                                    val usages = callRefactorService.findUsage(filePath, codeToSymbol)
+                                    thisLogger().info("Found ${usages.size} usages for '$codeToSymbol'.")
+                                    // Log details
+                                    usages.forEach { usage ->
+                                        thisLogger().info("  - ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}")
+                                    }
+                                    // Show notification summary
+                                    showNotification(project, "Found ${usages.size} usage(s) for '$codeToSymbol'. Check logs for details.", NotificationType.INFORMATION)
+                                } catch (ex: Exception) {
+                                    thisLogger().error("Error during manual Find Usages: ${ex.message}", ex)
+//                                    showNotification(project, "Error finding usages: ${ex.localizedMessage}", NotificationType.ERROR)
+                                }
+                            } else {
+                                thisLogger().warn("Manual Find Usages: File Path and Symbol Name cannot be empty.")
+//                                showNotification(project, "File Path and Symbol Name are required.", NotificationType.WARNING)
+                            }
+                        }
+                    }
+                    add(findButton)
+                    add(symbolPanel)
+                }
+                add(buttonPanel)
+            }
+            mainPanel.add(findUsagePanel)
+            // --- End Panel for Find Usages ---
+
+
             return mainPanel
         }
+
 
         // Function to show notification
         private fun showNotification(project: Project, content: String, type: NotificationType) {

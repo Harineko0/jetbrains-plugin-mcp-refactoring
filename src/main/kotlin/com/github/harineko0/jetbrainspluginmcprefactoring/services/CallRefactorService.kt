@@ -118,11 +118,10 @@ class CallRefactorService(private val project: Project) {
      * Finds usages of a PSI element identified by its name and optionally its line number.
      *
      * @param filePath The absolute path to the file containing the element definition.
-     * @param symbolName The name of the symbol (element) to find usages for.
-     * @param lineNumber Optional: The approximate line number to help locate the symbol definition.
+     * @param codeToSymbol The code from top of the file to the symbol name.
      * @return A list of UsageInfo objects representing the found usages, or an empty list if none are found or an error occurs.
      */
-    fun findUsage(filePath: String, symbolName: String, lineNumber: Int?): List<UsageInfo> {
+    fun findUsage(filePath: String, codeToSymbol: String): List<UsageInfo> {
         // Use ReadAction as we are only reading information, not writing
         return ReadAction.compute<List<UsageInfo>, Throwable> {
             val psiFile = findPsiFile(filePath) ?: run {
@@ -130,12 +129,13 @@ class CallRefactorService(private val project: Project) {
                 return@compute emptyList<UsageInfo>()
             }
 
-            val element = findElementByNameAndLine(psiFile, symbolName, lineNumber) ?: run {
-                println("Error: Could not find unique element with name '$symbolName' ${if (lineNumber != null) "near line $lineNumber" else ""} in file: $filePath to find usages for.")
+            val offset = codeToSymbol.length
+            val element = findElementAt(psiFile, offset) ?: run {
+                println("Error: Could not find element at offset $offset in file: $filePath")
                 return@compute emptyList<UsageInfo>()
             }
 
-            println("Searching usages of '${element.text}' defined in $filePath")
+            println("Searching usages of '${element.text}' defined at $offset in $filePath")
             val usages = ReferencesSearch.search(element).findAll()
             println("Found ${usages.size} usages.")
 
@@ -240,8 +240,9 @@ class CallRefactorService(private val project: Project) {
                     super.visitElement(element)
                     // Check if the element is a named element and its name matches
                     // Using PsiNameIdentifierOwner is a common way to find named declarations
+                    println("Visiting element: $element")
                     if (element is PsiNameIdentifierOwner) {
-                        if (element.name == name) {
+                        if (element.text == name) {
                             // Add the identifier element itself if it exists, otherwise the owner
                             candidates.add(element.nameIdentifier ?: element)
                         }
