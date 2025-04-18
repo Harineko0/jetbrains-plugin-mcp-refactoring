@@ -49,7 +49,8 @@ class McpLifecycleService(private val project: Project) : Disposable {
         }
     }
 
-    private fun stopServer() {
+    // Make stopServer public
+    fun stopServer() {
         if (ktorServerEngine == null) {
             thisLogger().warn("MCP server stop requested but not running for project ${project.name}")
             return
@@ -70,9 +71,17 @@ class McpLifecycleService(private val project: Project) : Disposable {
         }
     }
 
+    /**
+     * Checks if the Ktor server engine is currently running (not null).
+     * @return True if the server is considered running, false otherwise.
+     */
+    fun isServerRunning(): Boolean {
+        return ktorServerEngine != null
+    }
+
     override fun dispose() {
         thisLogger().info("Disposing McpLifecycleService for project ${project.name}, stopping server.")
-        stopServer()
+        stopServer() // Call the public stopServer method
         // Cancel the scope to clean up any lingering coroutines
         scope.coroutineContext[Job]?.cancel()
         thisLogger().info("McpLifecycleService disposed for project ${project.name}.")

@@ -4,4 +4,6 @@
 ```
 src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/mcp/McpServer.kt // MCP サーバーの実装
 src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/services/CallRefactorService.kt // IDE の機能を呼び出すサービス
+src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/services/McpLifecycleService.kt // McpServer を Web サーバーとして起動するサービス
+src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/toolWindow/MyToolWindowFactory.kt // ツールウィンドウの実装
 ```
