@@ -81,15 +81,12 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
                             thisLogger().info("Starting MCP server...")
                             lifecycleService.startServer(port) // Use lifecycleService
                             thisLogger().info("MCP server start initiated.")
-                            // Show notification
-                            showNotification(project, "MCP Server Started", NotificationType.INFORMATION)
                         } else {
                             button.text = MyBundle.message("start", "Start")
                             thisLogger().info("Stopping MCP server...")
                             lifecycleService.stopServer() // Use lifecycleService
                             thisLogger().info("MCP server stop initiated.")
                             // Show notification
-                            showNotification(project, "MCP Server Stopped", NotificationType.INFORMATION)
                         }
                     }
                 }
@@ -196,15 +193,6 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
             mainPanel.add(Box.createVerticalGlue()) // Push content to the top
 
             return mainPanel
-        }
-
-
-        // Function to show notification
-        private fun showNotification(project: Project, content: String, type: NotificationType) {
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("MCP Server Notifications") // Use the same ID defined above or a known one
-                .createNotification(content, type)
-                .notify(project)
         }
     }
 }

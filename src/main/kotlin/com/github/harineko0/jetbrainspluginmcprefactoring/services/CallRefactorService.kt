@@ -75,10 +75,11 @@ class CallRefactorService(private val project: Project) {
                 } catch (e: Exception) {
                     // Log the exception for better debugging
                     println("Rename failed: ${e.message}")
-                    e.printStackTrace() // Print stack trace for detailed error info
+                    throw e
                 }
             } else {
                 println("Error: Target file or element is null after write command.")
+                throw IllegalStateException("Target file or element is null after write command.")
             }
         }
         return success
