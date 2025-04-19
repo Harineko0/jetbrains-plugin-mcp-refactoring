@@ -10,6 +10,8 @@ import io.modelcontextprotocol.kotlin.sdk.* // Use the correct SDK package
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import kotlinx.serialization.json.* // Import necessary Json elements
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Err
 
 class McpServer(private val project: Project) { // Port is likely not needed here anymore
 
@@ -189,9 +191,9 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             // Updated logging
             thisLogger().info("Handling rename: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length}), newName=$newName")
             // Updated service call
-            val success = callRefactorService.renameElement(filePath, codeToSymbol, newName) // Pass new args
+            val result = callRefactorService.renameElement(filePath, codeToSymbol, newName)
 
-            if (success) {
+            if (result.isOk) {
                 // Use codeToSymbol in message for context, maybe truncate if too long
                 val context = if (codeToSymbol.length > 50) codeToSymbol.takeLast(50) + "..." else codeToSymbol
                 showNotification(
@@ -200,8 +202,8 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 )
                 CallToolResult(content = listOf(TextContent("Element near '$context' renamed successfully to '$newName'.")))
             } else {
-                showNotification("Error: Rename operation failed. Check IDE logs.", NotificationType.ERROR)
-                CallToolResult(content = listOf(TextContent("Error: Rename operation failed. Check IDE logs for details.")))
+                showNotification("Error: Rename operation failed. ${result.error}", NotificationType.ERROR)
+                CallToolResult(content = listOf(TextContent("Error: Rename operation failed. ${result.error}")))
             }
         } catch (e: Exception) {
             showNotification("Error: Failed to process rename request: ${e.message}", NotificationType.ERROR)
