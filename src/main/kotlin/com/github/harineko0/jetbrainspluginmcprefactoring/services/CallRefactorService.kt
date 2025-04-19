@@ -8,9 +8,13 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.*
+import com.intellij.psi.impl.file.PsiPackageImpl
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.refactoring.JavaRefactoringFactory
+import com.intellij.refactoring.PackageWrapper
 import com.intellij.refactoring.RefactoringFactory
+import com.intellij.refactoring.move.moveClassesOrPackages.SingleSourceRootMoveDestination
 import java.nio.file.Paths
 
 
@@ -38,22 +42,31 @@ class CallRefactorService(private val project: Project) {
     fun renameElement(filePath: String, codeToSymbol: String, newName: String): Boolean {
         var success = false
         ApplicationManager.getApplication().invokeAndWait {
+            var targetFile: PsiFile? = null
+            var targetElement: PsiElement? = null
+            val offset = codeToSymbol.length
+
             WriteCommandAction.runWriteCommandAction(project) {
                 val psiFile = findPsiFile(filePath) ?: run {
                     println("Error: Could not find PsiFile for path: $filePath")
                     return@runWriteCommandAction
                 }
 
-                val offset = codeToSymbol.length
                 val element = findElementAt(psiFile, offset) ?: run {
                     println("Error: Could not find element at offset $offset in file: $filePath")
                     return@runWriteCommandAction
                 }
 
+                targetFile = element.containingFile
+                targetElement = element
+            }
+
+            if (targetFile != null && targetElement != null) {
                 try {
-                    println("Attempting to rename element '${element.text}' at offset $offset to '$newName'")
-                    val renameRefactoring = RefactoringFactory.getInstance(project).createRename(element, newName)
-                    renameRefactoring.run()
+                    println("Attempting to rename element '${targetElement!!.text}' at offset $offset to '$newName'")
+                    val refactoring =
+                        RefactoringFactory.getInstance(project).createRename(targetElement!!, newName)
+                    refactoring.doRefactoring(refactoring.findUsages())
                     println("Rename successful for element at offset $offset in $filePath.")
                     success = true
                 } catch (e: Exception) {
@@ -61,6 +74,8 @@ class CallRefactorService(private val project: Project) {
                     println("Rename failed: ${e.message}")
                     e.printStackTrace() // Print stack trace for detailed error info
                 }
+            } else {
+                println("Error: Target file or element is null after write command.")
             }
         }
         return success
@@ -89,23 +104,25 @@ class CallRefactorService(private val project: Project) {
                     return@runWriteCommandAction
                 }
 
-                val targetVirtualFile = VirtualFileManager.getInstance().findFileByNioPath(Paths.get(targetDirectoryPath))
-                val targetDirectory = targetVirtualFile?.let { PsiManager.getInstance(project).findDirectory(it) } ?: run {
-                    println("Error: Could not find target directory: $targetDirectoryPath")
-                    return@runWriteCommandAction
-                }
+                val targetVirtualFile =
+                    VirtualFileManager.getInstance().findFileByNioPath(Paths.get(targetDirectoryPath))
+                val targetDirectory =
+                    targetVirtualFile?.let { PsiManager.getInstance(project).findDirectory(it) } ?: run {
+                        println("Error: Could not find target directory: $targetDirectoryPath")
+                        return@runWriteCommandAction
+                    }
 
                 try {
                     println("Attempting to move element '${element.text}' at offset $offset to '$targetDirectoryPath'")
-                    // Note: Moving elements often requires moving the containing declaration (e.g., class, function)
-                    // This implementation might need refinement based on what kind of element is being moved.
-                    // For simplicity, let's assume we are moving the file itself if the element is a top-level declaration,
-                    // or handle specific element types if needed. Currently, this might only work well for moving files/classes.
-                    // A more robust solution would involve `MoveFilesOrDirectoriesRefactoring` or `MoveMembersRefactoring`.
-                    // Let's use a basic move for now, which might need adjustment.
-                    // TODO:
-//                    val moveRefactoring = RefactoringFactory.getInstance(project).createMove(arrayOf(element.containingFile), targetDirectory) // Example: Moving the whole file
-//                    moveRefactoring.run()
+
+                    val javaFactory = JavaRefactoringFactory.getInstance(project)
+                    javaFactory.createMoveClassesOrPackages(
+                        arrayOf(element), SingleSourceRootMoveDestination(
+                            PackageWrapper.create(PsiPackageImpl(psiFile.manager, targetDirectory.name)),
+                            targetDirectory,
+                        )
+                    ).run()
+
                     println("Move successful for element at offset $offset in $filePath.")
                     success = true
                 } catch (e: Exception) {
@@ -141,10 +158,12 @@ class CallRefactorService(private val project: Project) {
 
                 try {
                     println("Attempting to delete element '${element.text}' at offset $offset")
-                    // Use element.delete() for direct deletion. For safer refactoring-aware deletion,
-                    // consider SafeDeleteHandler.invoke(project, arrayOf(element), true)
-                    val moveRefactoring = RefactoringFactory.getInstance(project).createSafeDelete(arrayOf(element.containingFile))
-                    moveRefactoring.run()
+                    val refactoring =
+                        RefactoringFactory.getInstance(project).createSafeDelete(arrayOf(element.containingFile))
+                    // Safe delete
+                    refactoring.run()
+                    // Force delete
+                    // refactoring.doRefactoring(refactoring.findUsages())
                     println("Delete successful for element at offset $offset in $filePath.")
                     success = true
                 } catch (e: Exception) {
@@ -222,6 +241,10 @@ class CallRefactorService(private val project: Project) {
                     )
                 }
             }
+            usageInfos.forEach { usage ->
+                println("  - ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}")
+            }
+
             usageInfos
         } // End ReadAction.compute
     }

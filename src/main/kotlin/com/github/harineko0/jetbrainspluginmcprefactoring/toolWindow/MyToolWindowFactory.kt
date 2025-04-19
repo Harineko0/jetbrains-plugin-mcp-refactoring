@@ -80,14 +80,14 @@ class MyToolWindowFactory : ToolWindowFactory {
                             lifecycleService.startServer(port) // Use lifecycleService
                             thisLogger().info("MCP server start initiated.")
                             // Show notification
-                            showNotification(project,"MCP Server Started", NotificationType.INFORMATION)
+                            showNotification(project, "MCP Server Started", NotificationType.INFORMATION)
                         } else {
                             button.text = MyBundle.message("start", "Start")
                             thisLogger().info("Stopping MCP server...")
                             lifecycleService.stopServer() // Use lifecycleService
                             thisLogger().info("MCP server stop initiated.")
-                             // Show notification
-                            showNotification(project,"MCP Server Stopped", NotificationType.INFORMATION)
+                            // Show notification
+                            showNotification(project, "MCP Server Stopped", NotificationType.INFORMATION)
                         }
                     }
                 }
@@ -98,63 +98,70 @@ class MyToolWindowFactory : ToolWindowFactory {
 
 
             // --- Panel for Find Usages ---
-            val findUsagePanel = JPanel().apply {
-                layout = BoxLayout(this, BoxLayout.Y_AXIS) // Vertical layout for this section
+            val demoPanel = JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.X_AXIS) // Vertical layout for this section
                 alignmentX = LEFT_ALIGNMENT // Align this panel to the left within mainPanel
 
-                add(JBLabel("Find Usages:"))
-
-                val filePathField = JBTextField("", 30)
-                val codeToSymbolField = JBTextArea(10, 4)
-
-                // File Path Row
-                val filePathPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
-                    add(JBLabel("File Path:"))
-                    add(filePathField)
-                }
-                add(filePathPanel)
-
-                // Symbol Name Row
-                val symbolPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
-                    add(JBLabel("Code to Symbol:"))
-                    add(codeToSymbolField)
-                }
+                val filePath = "/Users/hari/proj/GG/Caller.dart"
+                val codeToSymbol = "class C"
 
                 // Button Row
                 val buttonPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
                     val findButton = JButton("Find Usages").apply {
                         addActionListener {
-                            val filePath = filePathField.text.trim()
-                            val codeToSymbol = codeToSymbolField.text.trim()
-
-                            if (filePath.isNotEmpty() && codeToSymbol.isNotEmpty()) {
-                                thisLogger().info("Manual Find Usages: File='$filePath', Symbol='$codeToSymbol")
-                                try {
-                                    // Execute findUsage - consider running in background if potentially long
-                                    val usages = callRefactorService.findUsage(filePath, codeToSymbol)
-                                    thisLogger().info("Found ${usages.size} usages for '$codeToSymbol'.")
-                                    // Log details
-                                    usages.forEach { usage ->
-                                        thisLogger().info("  - ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}")
-                                    }
-                                    // Show notification summary
-                                    showNotification(project, "Found ${usages.size} usage(s) for '$codeToSymbol'. Check logs for details.", NotificationType.INFORMATION)
-                                } catch (ex: Exception) {
-                                    thisLogger().error("Error during manual Find Usages: ${ex.message}", ex)
-//                                    showNotification(project, "Error finding usages: ${ex.localizedMessage}", NotificationType.ERROR)
+                            try {
+                                // Execute findUsage - consider running in background if potentially long
+                                val usages = callRefactorService.findUsage(filePath, codeToSymbol)
+                                thisLogger().info("Found ${usages.size} usages.")
+                                // Log details
+                                usages.forEach { usage ->
+                                    thisLogger().info("  - ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}")
                                 }
-                            } else {
-                                thisLogger().warn("Manual Find Usages: File Path and Symbol Name cannot be empty.")
-//                                showNotification(project, "File Path and Symbol Name are required.", NotificationType.WARNING)
+                            } catch (ex: Exception) {
+                                thisLogger().error("Error during Find Usages: ${ex.message}", ex)
+                            }
+                        }
+                    }
+                    val moveButton = JButton("Move...").apply {
+                        addActionListener {
+                            try {
+                                val target = "/Users/hari/proj/GG/test"
+                                val result = callRefactorService.moveElement(filePath, codeToSymbol, target)
+                                thisLogger().info("Move element ${if (result) "successful" else "failed"}")
+                            } catch (ex: Exception) {
+                                thisLogger().error("Error during manual Find Usages: ${ex.message}", ex)
+                            }
+                        }
+                    }
+                    val deleteButton = JButton("Delete").apply {
+                        addActionListener {
+                            try {
+                                callRefactorService.deleteElement(filePath, codeToSymbol)
+                                thisLogger().info("Delete element successful")
+                            } catch (ex: Exception) {
+                                thisLogger().error("Error during manual Find Usages: ${ex.message}", ex)
+                            }
+                        }
+                    }
+                    val renameButton = JButton("Rename").apply {
+                        addActionListener {
+                            try {
+                                val newName = "NewClassName"
+                                callRefactorService.renameElement(filePath, codeToSymbol, newName)
+                                thisLogger().info("Rename element successful")
+                            } catch (ex: Exception) {
+                                thisLogger().error("Error during manual Find Usages: ${ex.message}", ex)
                             }
                         }
                     }
                     add(findButton)
-                    add(symbolPanel)
+                    add(moveButton)
+                    add(deleteButton)
+                    add(renameButton)
                 }
                 add(buttonPanel)
             }
-            mainPanel.add(findUsagePanel)
+            mainPanel.add(demoPanel)
             // --- End Panel for Find Usages ---
 
 
