@@ -121,6 +121,48 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             handleFindUsages(request)
         }
 
+        // --- Add Move File Tool ---
+        serverInstance.addTool(
+            name = "move_file",
+            description = "Moves a file to a different directory.",
+            inputSchema = Tool.Input(
+                properties = buildJsonObject {
+                    putJsonObject("targetFilePath") {
+                        put("type", "string")
+                        put("description", "Absolute path to the file to move.")
+                    }
+                    putJsonObject("destDirectoryPath") {
+                        put("type", "string")
+                        put("description", "Absolute path to the destination directory.")
+                    }
+                },
+                required = listOf("targetFilePath", "destDirectoryPath")
+            )
+        ) { request ->
+            handleMoveFile(request)
+        }
+
+        // --- Add Rename File Tool ---
+        serverInstance.addTool(
+            name = "rename_file",
+            description = "Renames a file.",
+            inputSchema = Tool.Input(
+                properties = buildJsonObject {
+                    putJsonObject("targetFilePath") {
+                        put("type", "string")
+                        put("description", "Absolute path to the file to rename.")
+                    }
+                    putJsonObject("newName") {
+                        put("type", "string")
+                        put("description", "The new name for the file (including extension).")
+                    }
+                },
+                required = listOf("targetFilePath", "newName")
+            )
+        ) { request ->
+            handleRenameFile(request)
+        }
+
 
         thisLogger().info("MCP Server configured with tools.")
         return serverInstance
@@ -256,6 +298,54 @@ class McpServer(private val project: Project) { // Port is likely not needed her
         } catch (e: Exception) {
             thisLogger().error("Error processing find usages request: ${e.message}", e)
             CallToolResult(content = listOf(TextContent("Error: Failed to process find usages request: ${e.message}")))
+        }
+    }
+
+    private fun handleMoveFile(request: CallToolRequest): CallToolResult {
+        return try {
+            val args = request.arguments
+            val targetFilePath = args["targetFilePath"]?.jsonPrimitive?.contentOrNull
+            val destDirectoryPath = args["destDirectoryPath"]?.jsonPrimitive?.contentOrNull
+
+            if (targetFilePath == null || destDirectoryPath == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (targetFilePath, destDirectoryPath).")))
+            }
+
+            thisLogger().info("Handling move file: targetFilePath=$targetFilePath, destDirectoryPath=$destDirectoryPath")
+            val success = callRefactorService.moveFile(targetFilePath, destDirectoryPath)
+
+            if (success) {
+                CallToolResult(content = listOf(TextContent("File '$targetFilePath' moved successfully to '$destDirectoryPath'.")))
+            } else {
+                CallToolResult(content = listOf(TextContent("Error: Move file operation failed. Check IDE logs.")))
+            }
+        } catch (e: Exception) {
+            thisLogger().error("Error processing move file request: ${e.message}", e)
+            CallToolResult(content = listOf(TextContent("Error: Failed to process move file request: ${e.message}")))
+        }
+    }
+
+    private fun handleRenameFile(request: CallToolRequest): CallToolResult {
+        return try {
+            val args = request.arguments
+            val targetFilePath = args["targetFilePath"]?.jsonPrimitive?.contentOrNull
+            val newName = args["newName"]?.jsonPrimitive?.contentOrNull
+
+            if (targetFilePath == null || newName == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required arguments (targetFilePath, newName).")))
+            }
+
+            thisLogger().info("Handling rename file: targetFilePath=$targetFilePath, newName=$newName")
+            val success = callRefactorService.renameFile(targetFilePath, newName)
+
+            if (success) {
+                CallToolResult(content = listOf(TextContent("File '$targetFilePath' renamed successfully to '$newName'.")))
+            } else {
+                CallToolResult(content = listOf(TextContent("Error: Rename file operation failed. Check IDE logs.")))
+            }
+        } catch (e: Exception) {
+            thisLogger().error("Error processing rename file request: ${e.message}", e)
+            CallToolResult(content = listOf(TextContent("Error: Failed to process rename file request: ${e.message}")))
         }
     }
 }

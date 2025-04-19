@@ -12,7 +12,6 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
-import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import java.awt.Component.LEFT_ALIGNMENT
@@ -150,14 +149,40 @@ class MyToolWindowFactory : ToolWindowFactory {
                                 callRefactorService.renameElement(filePath, codeToSymbol, newName)
                                 thisLogger().info("Rename element successful")
                             } catch (ex: Exception) {
-                                thisLogger().error("Error during manual Find Usages: ${ex.message}", ex)
+                                thisLogger().error("Error during manual Rename Element: ${ex.message}", ex)
+                            }
+                        }
+                    }
+                    val moveFileButton = JButton("Move File").apply {
+                        addActionListener {
+                            try {
+                                val srcFilePath = "/Users/hari/proj/GG/Caller.dart" // Keep consistent
+                                val dstDirPath = "/Users/hari/proj/GG/test" // Keep consistent
+                                val result = callRefactorService.moveFile(srcFilePath, dstDirPath)
+                                thisLogger().info("Move file ${if (result) "successful" else "failed"}")
+                            } catch (ex: Exception) {
+                                thisLogger().error("Error during manual Move File: ${ex.message}", ex)
+                            }
+                        }
+                    }
+                    val renameFileButton = JButton("Rename File").apply {
+                        addActionListener {
+                            try {
+                                val sourceFilePath = "/Users/hari/proj/GG/Caller.dart" // Keep consistent
+                                val newFileName = "CallerRenamed.dart"
+                                val result = callRefactorService.renameFile(sourceFilePath, newFileName)
+                                thisLogger().info("Rename file ${if (result) "successful" else "failed"}")
+                            } catch (ex: Exception) {
+                                thisLogger().error("Error during manual Rename File: ${ex.message}", ex)
                             }
                         }
                     }
                     add(findButton)
-                    add(moveButton)
-                    add(deleteButton)
-                    add(renameButton)
+                    add(moveButton) // Move Element
+                    add(deleteButton) // Delete Element
+                    add(renameButton) // Rename Element
+                    add(moveFileButton) // Move File
+                    add(renameFileButton) // Rename File
                 }
                 add(buttonPanel)
             }

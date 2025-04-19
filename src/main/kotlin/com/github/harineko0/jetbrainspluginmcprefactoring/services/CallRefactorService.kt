@@ -14,7 +14,10 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.refactoring.JavaRefactoringFactory
 import com.intellij.refactoring.PackageWrapper
 import com.intellij.refactoring.RefactoringFactory
+import com.intellij.refactoring.move.MoveCallback
 import com.intellij.refactoring.move.moveClassesOrPackages.SingleSourceRootMoveDestination
+import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesHandler
+import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesUtil
 import java.nio.file.Paths
 
 
@@ -247,6 +250,95 @@ class CallRefactorService(private val project: Project) {
 
             usageInfos
         } // End ReadAction.compute
+    }
+
+    /**
+     * Moves a file to a target directory.
+     *
+     * @param targetFilePath The absolute path to the file to move.
+     * @param destDirectoryPath The absolute path to the destination directory.
+     * @return True if the move operation was successful, false otherwise.
+     */
+    fun moveFile(targetFilePath: String, destDirectoryPath: String): Boolean {
+        var success = false
+        ApplicationManager.getApplication().invokeAndWait {
+            WriteCommandAction.runWriteCommandAction(project) {
+                val psiFile = findPsiFile(targetFilePath) ?: run {
+                    println("Error: Could not find PsiFile for path: $targetFilePath")
+                    return@runWriteCommandAction
+                }
+
+                val targetVirtualDir =
+                    VirtualFileManager.getInstance().findFileByNioPath(Paths.get(destDirectoryPath))
+                val targetDirectory =
+                    targetVirtualDir?.let { PsiManager.getInstance(project).findDirectory(it) } ?: run {
+                        println("Error: Could not find target directory: $destDirectoryPath")
+                        return@runWriteCommandAction
+                    }
+
+                try {
+                    println("Attempting to move file '$targetFilePath' to '$destDirectoryPath'")
+                    // Use MoveFilesOrDirectoriesHandler for moving files
+
+                    // check if target is a directory or a file
+//                    if (targetDirectory.virtualFile.isDirectory) {
+//                        println("Target is a directory.")
+//                    } else {
+//                        println("Target is a file.")
+//                    }
+
+                    // MoveFilesOrDirectoriesUtil.doMoveFile
+                    MoveFilesOrDirectoriesUtil.doMove(
+                        project,
+                        arrayOf(psiFile),
+                        arrayOf(targetDirectory),
+                        // MoveCallback is interface.
+                        object : MoveCallback {
+                            override fun refactoringCompleted() {
+                                success = true
+                                println("Move successful for file $targetFilePath.")
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    println("Move file failed: ${e.message}")
+                    e.printStackTrace()
+                }
+            }
+        }
+        return success
+    }
+
+    /**
+     * Renames a file.
+     *
+     * @param targetFilePath The absolute path to the file to rename.
+     * @param newName The new name for the file (including extension).
+     * @return True if the rename operation was successful, false otherwise.
+     */
+    fun renameFile(targetFilePath: String, newName: String): Boolean {
+        var success = false
+        ApplicationManager.getApplication().invokeAndWait {
+            WriteCommandAction.runWriteCommandAction(project) {
+                val psiFile = findPsiFile(targetFilePath) ?: run {
+                    println("Error: Could not find PsiFile for path: $targetFilePath")
+                    return@runWriteCommandAction
+                }
+
+                try {
+                    println("Attempting to rename file '$targetFilePath' to '$newName'")
+                    // Use RefactoringFactory to rename the PsiFile itself
+                    val refactoring = RefactoringFactory.getInstance(project).createRename(psiFile, newName)
+                    refactoring.doRefactoring(refactoring.findUsages())
+                    println("Rename successful for file $targetFilePath.")
+                    success = true
+                } catch (e: Exception) {
+                    println("Rename file failed: ${e.message}")
+                    e.printStackTrace()
+                }
+            }
+        }
+        return success
     }
 
     /**
