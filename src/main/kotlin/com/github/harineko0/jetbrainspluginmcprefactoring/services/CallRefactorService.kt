@@ -359,6 +359,48 @@ class CallRefactorService(private val project: Project) {
     }
 
     /**
+     * Deletes a file identified by its path.
+     *
+     * @param filePath The absolute path to the file to delete.
+     * @return Result indicating success (Ok) or failure (Err) with an error message.
+     */
+    fun deleteFile(filePath: String): Result<Unit, String> {
+        var err: Exception? = null
+        ApplicationManager.getApplication().invokeAndWait {
+            WriteCommandAction.runWriteCommandAction(project) {
+                val psiFile = findPsiFile(filePath) ?: run {
+                    val msg = "Error: Could not find PsiFile for path: $filePath"
+                    println(msg)
+                    err = IllegalStateException(msg)
+                    return@runWriteCommandAction
+                }
+
+                // Check if an error occurred before proceeding
+                if (err != null) return@runWriteCommandAction
+
+                try {
+                    println("Attempting safe delete for file '$filePath'")
+                    // Use SafeDelete refactoring instead of direct deletion
+                    val refactoring = RefactoringFactory.getInstance(project).createSafeDelete(arrayOf(psiFile))
+                    // Execute the refactoring. This might involve UI or background processing depending on the IDE's implementation.
+                    // Using run() is typical for non-interactive execution if supported.
+                    // If run() doesn't work or requires UI, doRefactoring might be an alternative,
+                    // but safe delete usually handles its own usage checks.
+                    refactoring.run() // Execute the safe delete refactoring
+                    // Note: Success/failure might be asynchronous or depend on user interaction if prompted.
+                    // We'll assume success if no immediate exception is thrown by run().
+                    println("Safe delete initiated for file $filePath.")
+                } catch (e: Exception) {
+                    val msg = "Safe delete failed: ${e.message}" // Updated message
+                    println(msg)
+                    err = e // Store the exception
+                }
+            }
+        }
+        return if (err == null) Ok(Unit) else Err(err!!.message ?: "Unknown error during delete file")
+    }
+
+    /**
      * Finds the PsiFile corresponding to the given file path.
      * Requires read access.
      */

@@ -173,6 +173,23 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             handleRenameFile(request)
         }
 
+        // --- Add Delete File Tool ---
+        serverInstance.addTool(
+            name = "delete_file",
+            description = "Deletes a file.",
+            inputSchema = Tool.Input(
+                properties = buildJsonObject {
+                    putJsonObject("targetFilePath") {
+                        put("type", "string")
+                        put("description", "Absolute path to the file to delete.")
+                    }
+                },
+                required = listOf("targetFilePath")
+            )
+        ) { request ->
+            handleDeleteFile(request)
+        }
+
 
         thisLogger().info("MCP Server configured with tools.")
         return serverInstance
@@ -394,6 +411,38 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             )
         }
     }
+
+    private fun handleDeleteFile(request: CallToolRequest): CallToolResult {
+        return try {
+            val args = request.arguments
+            val targetFilePath = args["targetFilePath"]?.jsonPrimitive?.contentOrNull
+
+            if (targetFilePath == null) {
+                return CallToolResult(content = listOf(TextContent("Error: Missing required argument (targetFilePath).")))
+            }
+
+            thisLogger().info("Handling delete file: targetFilePath=$targetFilePath")
+            val result = callRefactorService.deleteFile(targetFilePath) // Call the new service method
+
+            if (result.isOk) {
+                val successMsg = "File '$targetFilePath' deleted successfully."
+                showNotification(successMsg, NotificationType.INFORMATION)
+                CallToolResult(content = listOf(TextContent(successMsg)))
+            } else {
+                val errorMsg = "Error: Delete file operation failed. ${result.error}"
+                showNotification(errorMsg, NotificationType.ERROR)
+                CallToolResult(content = listOf(TextContent(errorMsg)), isError = true)
+            }
+        } catch (e: Exception) {
+            showNotification("Error: Failed to process delete file request: ${e.message}", NotificationType.ERROR)
+            thisLogger().error("Error processing delete file request: ${e.message}", e)
+            CallToolResult(
+                content = listOf(TextContent("Error: Failed to process delete file request: ${e.message}")),
+                isError = true
+            )
+        }
+    }
+
 
     private fun showNotification(content: String, type: NotificationType) {
         NotificationGroupManager.getInstance()

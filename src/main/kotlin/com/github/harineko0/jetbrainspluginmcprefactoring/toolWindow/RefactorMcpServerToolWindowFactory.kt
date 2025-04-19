@@ -1,10 +1,8 @@
 package com.github.harineko0.jetbrainspluginmcprefactoring.toolWindow
 
 import com.github.harineko0.jetbrainspluginmcprefactoring.MyBundle
-import com.github.harineko0.jetbrainspluginmcprefactoring.services.CallRefactorService // Import CallRefactorService
+import com.github.harineko0.jetbrainspluginmcprefactoring.services.CallRefactorService
 import com.github.harineko0.jetbrainspluginmcprefactoring.services.McpLifecycleService
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
@@ -15,13 +13,9 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import java.awt.Component.LEFT_ALIGNMENT
-import java.awt.Dimension // Added for RigidArea
+import java.awt.Dimension
 import java.awt.FlowLayout
-import javax.swing.Box // Added for spacing and glue
-import javax.swing.BoxLayout
-import javax.swing.JButton
-import javax.swing.JPanel
-import javax.swing.JToggleButton
+import javax.swing.*
 
 class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
 
@@ -97,7 +91,7 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
             mainPanel.add(Box.createRigidArea(Dimension(0, 10))) // Add fixed vertical space
 
 
-            // --- Panel for Find Usages ---
+            // --- Panel for Demo of Refactoring ---
             val demoPanel = JPanel().apply {
                 layout = BoxLayout(this, BoxLayout.X_AXIS) // Vertical layout for this section
                 alignmentX = LEFT_ALIGNMENT // Align this panel to the left within mainPanel
@@ -185,12 +179,28 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
                             }
                         }
                     }
+                    val deleteFileButton = JButton("Delete File").apply { // New button
+                        addActionListener {
+                            try {
+                                val targetFilePath = "/Users/hari/proj/GG/CallerRenamed.dart" // Use a specific file for deletion test
+                                val result = callRefactorService.deleteFile(targetFilePath)
+                                if (result.isOk) {
+                                    thisLogger().info("Delete file successful.")
+                                } else {
+                                    thisLogger().error("Error during Delete File: ${result.error}")
+                                }
+                            } catch (ex: Exception) { // Catch unexpected errors
+                                thisLogger().error("Unexpected error during Delete File action: ${ex.message}", ex)
+                            }
+                        }
+                    }
                     add(findButton)
                     add(moveButton) // Move Element
                     add(deleteButton) // Delete Element
                     add(renameButton) // Rename Element
                     add(moveFileButton) // Move File
                     add(renameFileButton) // Rename File
+                    add(deleteFileButton) // Add the new Delete File button
                 }
                 add(buttonPanel)
             }
