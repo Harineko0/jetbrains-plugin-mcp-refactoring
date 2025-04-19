@@ -9,7 +9,7 @@
     <resource-bundle>messages.MyBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.harineko0.jetbrainspluginmcprefactoring.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
+        <toolWindow factoryClass="com.github.harineko0.jetbrainspluginmcprefactoring.toolWindow.RefactorMcpServerToolWindowFactory" id="Refactor MCP Server"/>
         <postStartupActivity implementation="com.github.harineko0.jetbrainspluginmcprefactoring.startup.MyProjectActivity" />
         <projectService serviceImplementation="com.github.harineko0.jetbrainspluginmcprefactoring.services.CallRefactorService"/>
         <projectService serviceImplementation="com.github.harineko0.jetbrainspluginmcprefactoring.services.McpLifecycleService"/>

@@ -6,4 +6,6 @@ src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/mcp/McpServer
 src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/services/CallRefactorService.kt // IDE の機能を呼び出すサービス
 src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/services/McpLifecycleService.kt // McpServer を Web サーバーとして起動するサービス
 src/main/kotlin/com/github/harineko0/jetbrainspluginmcprefactoring/toolWindow/MyToolWindowFactory.kt // ツールウィンドウの実装
+src/main/resources/messages/MyBundle.properties // プロジェクトのメッセージリソース
+src/main/resources/META-INF/plugin.xml // プラグインのメタデータ. ToolWindow など.
 ```

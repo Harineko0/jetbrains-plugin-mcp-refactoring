@@ -15,20 +15,22 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import java.awt.Component.LEFT_ALIGNMENT
+import java.awt.Dimension // Added for RigidArea
 import java.awt.FlowLayout
+import javax.swing.Box // Added for spacing and glue
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JPanel
 import javax.swing.JToggleButton
 
-class MyToolWindowFactory : ToolWindowFactory {
+class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         // Register the notification group if it doesn't exist (optional, but good practice)
         // NotificationGroupManager.getInstance().registerNotificationGroup(
         //     NotificationGroup(NOTIFICATION_GROUP_ID, NotificationDisplayType.BALLOON, true)
         // )
-        val myToolWindow = MyToolWindow(toolWindow, project) // Pass project to MyToolWindow
+        val myToolWindow = RefactorMcpServerToolWindow(toolWindow, project) // Pass project to MyToolWindow
         val content = ContentFactory.getInstance().createContent(myToolWindow.getContent(), null, false)
         toolWindow.contentManager.addContent(content)
     }
@@ -36,7 +38,7 @@ class MyToolWindowFactory : ToolWindowFactory {
     override fun shouldBeAvailable(project: Project) = true
 
     // Pass project to the constructor
-    class MyToolWindow(toolWindow: ToolWindow, private val project: Project) {
+    class RefactorMcpServerToolWindow(toolWindow: ToolWindow, private val project: Project) {
 
         private val lifecycleService = project.service<McpLifecycleService>() // Rename for clarity
         private val callRefactorService = project.service<CallRefactorService>() // Get CallRefactorService instance
@@ -62,6 +64,7 @@ class MyToolWindowFactory : ToolWindowFactory {
                 add(portField)
             }
             mainPanel.add(portPanel)
+            mainPanel.add(Box.createRigidArea(Dimension(0, 10))) // Add fixed vertical space
 
             // Panel for Server control
             val controlPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
@@ -94,6 +97,7 @@ class MyToolWindowFactory : ToolWindowFactory {
                 add(toggleButton)
             }
             mainPanel.add(controlPanel)
+            mainPanel.add(Box.createRigidArea(Dimension(0, 10))) // Add fixed vertical space
 
 
             // --- Panel for Find Usages ---
@@ -189,6 +193,7 @@ class MyToolWindowFactory : ToolWindowFactory {
             mainPanel.add(demoPanel)
             // --- End Panel for Find Usages ---
 
+            mainPanel.add(Box.createVerticalGlue()) // Push content to the top
 
             return mainPanel
         }
