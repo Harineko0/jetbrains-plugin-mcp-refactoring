@@ -111,11 +111,14 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
                         addActionListener {
                             try {
                                 // Execute findUsage - consider running in background if potentially long
-                                val usages = callRefactorService.findUsage(filePath, codeToSymbol)
-                                thisLogger().info("Found ${usages.size} usages.")
-                                // Log details
-                                usages.forEach { usage ->
-                                    thisLogger().info("  - ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}")
+                                val res = callRefactorService.findUsage(filePath, codeToSymbol)
+                                if (res.isOk) {
+                                    val usages = res.value
+                                    thisLogger().info("Found ${usages.size} usages.")
+                                    // Log details
+                                    usages.forEach { usage ->
+                                        thisLogger().info("  - ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}")
+                                    }
                                 }
                             } catch (ex: Exception) {
                                 thisLogger().error("Error during Find Usages: ${ex.message}", ex)
@@ -127,7 +130,7 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
                             try {
                                 val target = "/Users/hari/proj/GG/test"
                                 val result = callRefactorService.moveElement(filePath, codeToSymbol, target)
-                                thisLogger().info("Move element ${if (result) "successful" else "failed"}")
+                                thisLogger().info("Move element ${if (result.isOk) "successful" else "failed"}")
                             } catch (ex: Exception) {
                                 thisLogger().error("Error during manual Find Usages: ${ex.message}", ex)
                             }
@@ -160,7 +163,7 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
                                 val srcFilePath = "/Users/hari/proj/GG/Caller.dart" // Keep consistent
                                 val dstDirPath = "/Users/hari/proj/GG/test" // Keep consistent
                                 val result = callRefactorService.moveFile(srcFilePath, dstDirPath)
-                                thisLogger().info("Move file ${if (result) "successful" else "failed"}")
+                                thisLogger().info("Move file ${if (result.isOk) "successful" else "failed"}")
                             } catch (ex: Exception) {
                                 thisLogger().error("Error during manual Move File: ${ex.message}", ex)
                             }
@@ -172,9 +175,13 @@ class RefactorMcpServerToolWindowFactory : ToolWindowFactory {
                                 val sourceFilePath = "/Users/hari/proj/GG/Caller.dart" // Keep consistent
                                 val newFileName = "CallerRenamed.dart"
                                 val result = callRefactorService.renameFile(sourceFilePath, newFileName)
-                                thisLogger().info("Rename file ${if (result) "successful" else "failed"}")
-                            } catch (ex: Exception) {
-                                thisLogger().error("Error during manual Rename File: ${ex.message}", ex)
+                                if (result.isOk) {
+                                    thisLogger().info("Rename file successful.")
+                                } else {
+                                    thisLogger().error("Error during Rename File: ${result.error}")
+                                }
+                            } catch (ex: Exception) { // Catch unexpected errors
+                                thisLogger().error("Unexpected error during Rename File action: ${ex.message}", ex)
                             }
                         }
                     }

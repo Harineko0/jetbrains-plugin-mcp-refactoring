@@ -95,8 +95,8 @@ class CallRefactorService(private val project: Project) {
      * @param targetDirectoryPath The absolute path to the target directory.
      * @return True if the move operation was successful, false otherwise.
      */
-    fun moveElement(filePath: String, codeToSymbol: String, targetDirectoryPath: String): Boolean {
-        var success = false
+    fun moveElement(filePath: String, codeToSymbol: String, targetDirectoryPath: String): Result<Unit, String> {
+        var err: Exception? = null
         ApplicationManager.getApplication().invokeAndWait {
             WriteCommandAction.runWriteCommandAction(project) {
                 val psiFile = findPsiFile(filePath) ?: run {
@@ -127,17 +127,18 @@ class CallRefactorService(private val project: Project) {
                             PackageWrapper.create(PsiPackageImpl(psiFile.manager, targetDirectory.name)),
                             targetDirectory,
                         )
-                    ).run()
+                    ).run() // Note: This might not throw exceptions directly for all failure cases.
 
-                    println("Move successful for element at offset $offset in $filePath.")
-                    success = true
+                    println("Move initiated for element at offset $offset in $filePath.")
+                    // Assuming success if no immediate exception is thrown by run()
                 } catch (e: Exception) {
-                    println("Move failed: ${e.message}")
-                    e.printStackTrace()
+                    val msg = "Move failed: ${e.message}"
+                    println(msg)
+                    err = e // Store the exception
                 }
             }
         }
-        return success
+        return if (err == null) Ok(Unit) else Err(err!!.message ?: "Unknown error during move element")
     }
 
     /**
@@ -145,40 +146,43 @@ class CallRefactorService(private val project: Project) {
      *
      * @param filePath The absolute path to the file containing the element.
      * @param codeToSymbol The code from the start of the file up to the symbol to delete.
-     * @return True if the delete operation was successful, false otherwise.
+     * @return Result indicating success (Ok) or failure (Err) with an error message.
      */
-    fun deleteElement(filePath: String, codeToSymbol: String): Boolean {
-        var success = false
+    fun deleteElement(filePath: String, codeToSymbol: String): Result<Unit, String> {
+        var err: Exception? = null
         ApplicationManager.getApplication().invokeAndWait {
             WriteCommandAction.runWriteCommandAction(project) {
                 val psiFile = findPsiFile(filePath) ?: run {
-                    println("Error: Could not find PsiFile for path: $filePath")
+                    val msg = "Error: Could not find PsiFile for path: $filePath"
+                    println(msg)
+                    err = IllegalStateException(msg)
                     return@runWriteCommandAction
                 }
 
                 val offset = codeToSymbol.length
                 val element = findElementAt(psiFile, offset) ?: run {
-                    println("Error: Could not find element at offset $offset in file: $filePath")
+                    val msg = "Error: Could not find element at offset $offset in file: $filePath"
+                    println(msg)
+                    err = IllegalStateException(msg)
                     return@runWriteCommandAction
                 }
 
+                // Check if an error occurred before proceeding
+                if (err != null) return@runWriteCommandAction
+
                 try {
                     println("Attempting to delete element '${element.text}' at offset $offset")
-                    val refactoring =
-                        RefactoringFactory.getInstance(project).createSafeDelete(arrayOf(element.containingFile))
-                    // Safe delete
-                    refactoring.run()
-                    // Force delete
-                    // refactoring.doRefactoring(refactoring.findUsages())
+                    // Using direct deletion as it might be more appropriate for a single element
+                    element.delete()
                     println("Delete successful for element at offset $offset in $filePath.")
-                    success = true
                 } catch (e: Exception) {
-                    println("Delete failed: ${e.message}")
-                    e.printStackTrace()
+                    val msg = "Delete failed: ${e.message}"
+                    println(msg)
+                    err = e // Store the exception
                 }
             }
         }
-        return success
+        return if (err == null) Ok(Unit) else Err(err!!.message ?: "Unknown error during delete element")
     }
 
     /**
@@ -188,18 +192,18 @@ class CallRefactorService(private val project: Project) {
      * @param codeToSymbol The code from the start of the file up to the symbol name.
      * @return A list of UsageInfo objects representing the found usages, or an empty list if none are found or an error occurs.
      */
-    fun findUsage(filePath: String, codeToSymbol: String): List<UsageInfo> {
+    fun findUsage(filePath: String, codeToSymbol: String): Result<List<UsageInfo>, String> {
         // Use ReadAction as we are only reading information, not writing
-        return ReadAction.compute<List<UsageInfo>, Throwable> {
+        return ReadAction.compute<Result<List<UsageInfo>, String>, Throwable> {
             val psiFile = findPsiFile(filePath) ?: run {
                 println("Error: Could not find PsiFile for path: $filePath")
-                return@compute emptyList() // Use emptyList() for conciseness
+                return@compute Err("Could not find PsiFile for path: $filePath")
             }
 
             val offset = codeToSymbol.length
             val element = findElementAt(psiFile, offset) ?: run {
                 println("Error: Could not find element at offset $offset in file: $filePath")
-                return@compute emptyList()
+                return@compute Err("Could not find element at offset $offset in file: $filePath")
             }
 
             println("Searching usages of '${element.text}' (found at offset $offset) in $filePath")
@@ -251,7 +255,7 @@ class CallRefactorService(private val project: Project) {
                 println("  - ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}")
             }
 
-            usageInfos
+            Ok(usageInfos)
         } // End ReadAction.compute
     }
 
@@ -262,8 +266,8 @@ class CallRefactorService(private val project: Project) {
      * @param destDirectoryPath The absolute path to the destination directory.
      * @return True if the move operation was successful, false otherwise.
      */
-    fun moveFile(targetFilePath: String, destDirectoryPath: String): Boolean {
-        var success = false
+    fun moveFile(targetFilePath: String, destDirectoryPath: String): Result<Unit, String> {
+        var err: Exception? = null
         ApplicationManager.getApplication().invokeAndWait {
             WriteCommandAction.runWriteCommandAction(project) {
                 val psiFile = findPsiFile(targetFilePath) ?: run {
@@ -290,26 +294,31 @@ class CallRefactorService(private val project: Project) {
 //                        println("Target is a file.")
 //                    }
 
-                    // MoveFilesOrDirectoriesUtil.doMoveFile
+                    // refactoringCompleted が呼ばれなかったらこのエラーが返される
+                    err = Exception("Move operation failed: Target is not a directory.")
                     MoveFilesOrDirectoriesUtil.doMove(
                         project,
                         arrayOf(psiFile),
                         arrayOf(targetDirectory),
-                        // MoveCallback is interface.
+                        // MoveCallback is interface. Use a flag as callback might not run if exception occurs before.
                         object : MoveCallback {
                             override fun refactoringCompleted() {
-                                success = true
+                                err = null // Reset error if callback runs successfully
                                 println("Move successful for file $targetFilePath.")
                             }
+                            // Consider adding override fun checkConflicts(project: Project, elements: Array<out PsiElement>, targetContainer: PsiElement): Boolean { return false } if needed
                         }
                     )
+                    // Note: doMove might not throw exception immediately, success depends on callback
                 } catch (e: Exception) {
-                    println("Move file failed: ${e.message}")
-                    e.printStackTrace()
+                    val msg = "Move file failed: ${e.message}"
+                    println(msg)
+                    err = e // Store the exception
                 }
-            }
-        }
-        return success
+            } // End WriteCommandAction
+        } // End invokeAndWait
+
+        return if (err == null) Ok(Unit) else Err(err!!.message ?: "Unknown error during move file")
     }
 
     /**
@@ -317,16 +326,21 @@ class CallRefactorService(private val project: Project) {
      *
      * @param targetFilePath The absolute path to the file to rename.
      * @param newName The new name for the file (including extension).
-     * @return True if the rename operation was successful, false otherwise.
+     * @return Result indicating success (Ok) or failure (Err) with an error message.
      */
-    fun renameFile(targetFilePath: String, newName: String): Boolean {
-        var success = false
+    fun renameFile(targetFilePath: String, newName: String): Result<Unit, String> {
+        var err: Exception? = null
         ApplicationManager.getApplication().invokeAndWait {
             WriteCommandAction.runWriteCommandAction(project) {
                 val psiFile = findPsiFile(targetFilePath) ?: run {
-                    println("Error: Could not find PsiFile for path: $targetFilePath")
+                    val msg = "Error: Could not find PsiFile for path: $targetFilePath"
+                    println(msg)
+                    err = IllegalStateException(msg)
                     return@runWriteCommandAction
                 }
+
+                // Check if an error occurred before proceeding
+                if (err != null) return@runWriteCommandAction
 
                 try {
                     println("Attempting to rename file '$targetFilePath' to '$newName'")
@@ -334,14 +348,14 @@ class CallRefactorService(private val project: Project) {
                     val refactoring = RefactoringFactory.getInstance(project).createRename(psiFile, newName)
                     refactoring.doRefactoring(refactoring.findUsages())
                     println("Rename successful for file $targetFilePath.")
-                    success = true
                 } catch (e: Exception) {
-                    println("Rename file failed: ${e.message}")
-                    e.printStackTrace()
+                    val msg = "Rename file failed: ${e.message}"
+                    println(msg)
+                    err = e // Store the exception
                 }
             }
         }
-        return success
+        return if (err == null) Ok(Unit) else Err(err!!.message ?: "Unknown error during rename file")
     }
 
     /**

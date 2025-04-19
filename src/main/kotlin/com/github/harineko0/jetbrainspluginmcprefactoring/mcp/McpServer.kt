@@ -10,8 +10,6 @@ import io.modelcontextprotocol.kotlin.sdk.* // Use the correct SDK package
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import kotlinx.serialization.json.* // Import necessary Json elements
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Err
 
 class McpServer(private val project: Project) { // Port is likely not needed here anymore
 
@@ -226,9 +224,9 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             // Updated logging
             thisLogger().info("Handling move: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length}), targetDir=$targetDirectoryPath")
             // Updated service call
-            val success = callRefactorService.moveElement(filePath, codeToSymbol, targetDirectoryPath)
+            val result = callRefactorService.moveElement(filePath, codeToSymbol, targetDirectoryPath)
 
-            if (success) {
+            if (result.isOk) {
                 showNotification("Element moved successfully to '$targetDirectoryPath'.", NotificationType.INFORMATION)
                 CallToolResult(content = listOf(TextContent("Element moved successfully to '$targetDirectoryPath'.")))
             } else {
@@ -255,9 +253,9 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             // Updated logging
             thisLogger().info("Handling delete: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length})")
             // Updated service call
-            val success = callRefactorService.deleteElement(filePath, codeToSymbol)
+            val result = callRefactorService.deleteElement(filePath, codeToSymbol)
 
-            if (success) {
+            if (result.isOk) {
                 showNotification("Element deleted successfully.", NotificationType.INFORMATION)
                 CallToolResult(content = listOf(TextContent("Element deleted successfully.")))
             } else {
@@ -284,9 +282,10 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             // Logging (already correct)
             thisLogger().info("Handling find usages: filePath=$filePath, codeToSymbol (length=${codeToSymbol.length})")
             // Service call (already correct)
-            val usages = callRefactorService.findUsage(filePath, codeToSymbol)
+            val result = callRefactorService.findUsage(filePath, codeToSymbol)
 
-            if (usages.isNotEmpty()) {
+            if (result.isOk) {
+                val usages = result.value
                 // Format the usages into a readable string or structured JSON
                 val formattedUsages = usages.joinToString("\n") { usage ->
                     "- ${usage.filePath}:${usage.lineNumber}:${usage.columnNumber} : ${usage.usageTextSnippet}"
@@ -316,9 +315,9 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             }
 
             thisLogger().info("Handling move file: targetFilePath=$targetFilePath, destDirectoryPath=$destDirectoryPath")
-            val success = callRefactorService.moveFile(targetFilePath, destDirectoryPath)
+            val result = callRefactorService.moveFile(targetFilePath, destDirectoryPath)
 
-            if (success) {
+            if (result.isOk) {
                 CallToolResult(content = listOf(TextContent("File '$targetFilePath' moved successfully to '$destDirectoryPath'.")))
             } else {
                 CallToolResult(content = listOf(TextContent("Error: Move file operation failed. Check IDE logs.")))
@@ -341,14 +340,16 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             }
 
             thisLogger().info("Handling rename file: targetFilePath=$targetFilePath, newName=$newName")
-            val success = callRefactorService.renameFile(targetFilePath, newName)
+            val result = callRefactorService.renameFile(targetFilePath, newName)
 
-            if (success) {
-                showNotification("File '$targetFilePath' renamed successfully to '$newName'.", NotificationType.INFORMATION)
-                CallToolResult(content = listOf(TextContent("File '$targetFilePath' renamed successfully to '$newName'.")))
+            if (result.isOk) {
+                val successMsg = "File '$targetFilePath' renamed successfully to '$newName'."
+                showNotification(successMsg, NotificationType.INFORMATION)
+                CallToolResult(content = listOf(TextContent(successMsg)))
             } else {
-                showNotification("Error: Rename file operation failed. Check IDE logs.", NotificationType.ERROR)
-                CallToolResult(content = listOf(TextContent("Error: Rename file operation failed. Check IDE logs.")))
+                val errorMsg = "Error: Rename file operation failed. ${result.error}"
+                showNotification(errorMsg, NotificationType.ERROR)
+                CallToolResult(content = listOf(TextContent(errorMsg)))
             }
         } catch (e: Exception) {
             showNotification("Error: Failed to process rename file request: ${e.message}", NotificationType.ERROR)
