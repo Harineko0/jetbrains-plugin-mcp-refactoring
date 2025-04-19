@@ -16,10 +16,11 @@ import com.intellij.refactoring.PackageWrapper
 import com.intellij.refactoring.RefactoringFactory
 import com.intellij.refactoring.move.MoveCallback
 import com.intellij.refactoring.move.moveClassesOrPackages.SingleSourceRootMoveDestination
-import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesHandler
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesUtil
 import java.nio.file.Paths
-
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Err
 
 /**
  * Data class to hold information about a single usage found.
@@ -42,8 +43,8 @@ class CallRefactorService(private val project: Project) {
      * @param newName The new name for the element.
      * @return True if the rename operation was successful, false otherwise.
      */
-    fun renameElement(filePath: String, codeToSymbol: String, newName: String): Boolean {
-        var success = false
+    fun renameElement(filePath: String, codeToSymbol: String, newName: String): Result<Unit, String> {
+        var err: Exception? = null
         ApplicationManager.getApplication().invokeAndWait {
             var targetFile: PsiFile? = null
             var targetElement: PsiElement? = null
@@ -52,11 +53,13 @@ class CallRefactorService(private val project: Project) {
             WriteCommandAction.runWriteCommandAction(project) {
                 val psiFile = findPsiFile(filePath) ?: run {
                     println("Error: Could not find PsiFile for path: $filePath")
+                    err = IllegalStateException("Could not find PsiFile for path: $filePath")
                     return@runWriteCommandAction
                 }
 
                 val element = findElementAt(psiFile, offset) ?: run {
                     println("Error: Could not find element at offset $offset in file: $filePath")
+                    err = IllegalStateException("Could not find element at offset $offset in file: $filePath")
                     return@runWriteCommandAction
                 }
 
@@ -71,18 +74,17 @@ class CallRefactorService(private val project: Project) {
                         RefactoringFactory.getInstance(project).createRename(targetElement!!, newName)
                     refactoring.doRefactoring(refactoring.findUsages())
                     println("Rename successful for element at offset $offset in $filePath.")
-                    success = true
                 } catch (e: Exception) {
                     // Log the exception for better debugging
                     println("Rename failed: ${e.message}")
-                    throw e
+                    err = e
                 }
             } else {
                 println("Error: Target file or element is null after write command.")
-                throw IllegalStateException("Target file or element is null after write command.")
+                err = IllegalStateException("Target file or element is null after write command.")
             }
         }
-        return success
+        return if (err == null) Ok(Unit) else Err(err!!.message ?: "Unknown error")
     }
 
     /**

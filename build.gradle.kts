@@ -44,6 +44,9 @@ dependencies {
     implementation("io.ktor:ktor-server-cio-jvm:$ktorVersion") // CIO engine
     implementation("io.ktor:ktor-server-sse-jvm:$ktorVersion") // SSE support
 
+    // result type
+    implementation("com.michael-bull.kotlin-result:kotlin-result:2.0.1")
+
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
         create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
