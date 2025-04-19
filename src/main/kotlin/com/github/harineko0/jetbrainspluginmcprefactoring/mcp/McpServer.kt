@@ -32,6 +32,9 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             )
         )
 
+        val codeToSymbolExample =
+            "If you want to specify Foo class in this file, you can use 'import Bar;\nclass Foo' as codeToSymbol.\n```java\nimport Bar;\nclass Foo {\n    void method() {\n        // code\n    }\n}\n```"
+
         // --- Add Rename Tool ---
         serverInstance.addTool(
             name = "rename_element",
@@ -45,6 +48,7 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                     putJsonObject("codeToSymbol") { // Changed from symbolName/lineNumber
                         put("type", "string")
                         put("description", "The code from the start of the file up to the symbol to rename.")
+                        put("example", codeToSymbolExample)
                     }
                     putJsonObject("newName") {
                         put("type", "string")
@@ -70,6 +74,7 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                     putJsonObject("codeToSymbol") { // Changed from offset
                         put("type", "string")
                         put("description", "The code from the start of the file up to the symbol to move.")
+                        put("example", codeToSymbolExample)
                     }
                     putJsonObject("targetDirectoryPath") {
                         put("type", "string")
@@ -95,6 +100,7 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                     putJsonObject("codeToSymbol") { // Changed from offset
                         put("type", "string")
                         put("description", "The code from the start of the file up to the symbol to delete.")
+                        put("example", codeToSymbolExample)
                     }
                 },
                 required = listOf("filePath", "codeToSymbol") // Updated required list
@@ -116,6 +122,7 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                     putJsonObject("codeToSymbol") {
                         put("type", "string")
                         put("description", "The code from the start of the file up to the symbol to find usages for.")
+                        put("example", codeToSymbolExample)
                     }
                 },
                 required = listOf("filePath", "codeToSymbol") // Updated required list
@@ -201,11 +208,17 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 CallToolResult(content = listOf(TextContent("Element near '$context' renamed successfully to '$newName'.")))
             } else {
                 showNotification("Error: Rename operation failed. ${result.error}", NotificationType.ERROR)
-                CallToolResult(content = listOf(TextContent("Error: Rename operation failed. ${result.error}")))
+                CallToolResult(
+                    content = listOf(TextContent("Error: Rename operation failed. ${result.error}")),
+                    isError = true
+                )
             }
         } catch (e: Exception) {
             showNotification("Error: Failed to process rename request: ${e.message}", NotificationType.ERROR)
-            CallToolResult(content = listOf(TextContent("Error: Failed to process rename request: ${e.message}")))
+            CallToolResult(
+                content = listOf(TextContent("Error: Failed to process rename request: ${e.message}")),
+                isError = true
+            )
         }
     }
 
@@ -231,11 +244,17 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 CallToolResult(content = listOf(TextContent("Element moved successfully to '$targetDirectoryPath'.")))
             } else {
                 showNotification("Error: Move operation failed. Check IDE logs.", NotificationType.ERROR)
-                CallToolResult(content = listOf(TextContent("Error: Move operation failed. Check IDE logs.")))
+                CallToolResult(
+                    content = listOf(TextContent("Error: Move operation failed. Check IDE logs.")),
+                    isError = true
+                )
             }
         } catch (e: Exception) {
             showNotification("Error: Failed to process move request: ${e.message}", NotificationType.ERROR)
-            CallToolResult(content = listOf(TextContent("Error: Failed to process move request: ${e.message}")))
+            CallToolResult(
+                content = listOf(TextContent("Error: Failed to process move request: ${e.message}")),
+                isError = true
+            )
         }
     }
 
@@ -260,11 +279,17 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 CallToolResult(content = listOf(TextContent("Element deleted successfully.")))
             } else {
                 showNotification("Error: Delete operation failed. Check IDE logs.", NotificationType.ERROR)
-                CallToolResult(content = listOf(TextContent("Error: Delete operation failed. Check IDE logs.")))
+                CallToolResult(
+                    content = listOf(TextContent("Error: Delete operation failed. Check IDE logs.")),
+                    isError = true
+                )
             }
         } catch (e: Exception) {
             showNotification("Error: Failed to process delete request: ${e.message}", NotificationType.ERROR)
-            CallToolResult(content = listOf(TextContent("Error: Failed to process delete request: ${e.message}")))
+            CallToolResult(
+                content = listOf(TextContent("Error: Failed to process delete request: ${e.message}")),
+                isError = true
+            )
         }
     }
 
@@ -295,12 +320,15 @@ class McpServer(private val project: Project) { // Port is likely not needed her
                 showNotification(resultText, NotificationType.INFORMATION)
                 CallToolResult(content = listOf(TextContent(resultText)))
             } else {
-                CallToolResult(content = listOf(TextContent("No usages found.")))
+                CallToolResult(content = listOf(TextContent("No usages found.")), isError = true)
             }
         } catch (e: Exception) {
             showNotification("Error: Failed to process find usages request: ${e.message}", NotificationType.ERROR)
             thisLogger().error("Error processing find usages request: ${e.message}", e)
-            CallToolResult(content = listOf(TextContent("Error: Failed to process find usages request: ${e.message}")))
+            CallToolResult(
+                content = listOf(TextContent("Error: Failed to process find usages request: ${e.message}")),
+                isError = true
+            )
         }
     }
 
@@ -320,12 +348,18 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             if (result.isOk) {
                 CallToolResult(content = listOf(TextContent("File '$targetFilePath' moved successfully to '$destDirectoryPath'.")))
             } else {
-                CallToolResult(content = listOf(TextContent("Error: Move file operation failed. Check IDE logs.")))
+                CallToolResult(
+                    content = listOf(TextContent("Error: Move file operation failed. Check IDE logs.")),
+                    isError = true
+                )
             }
         } catch (e: Exception) {
             thisLogger().error("Error processing move file request: ${e.message}", e)
             showNotification("Error: Failed to process move file request: ${e.message}", NotificationType.ERROR)
-            CallToolResult(content = listOf(TextContent("Error: Failed to process move file request: ${e.message}")))
+            CallToolResult(
+                content = listOf(TextContent("Error: Failed to process move file request: ${e.message}")),
+                isError = true
+            )
         }
     }
 
@@ -349,12 +383,15 @@ class McpServer(private val project: Project) { // Port is likely not needed her
             } else {
                 val errorMsg = "Error: Rename file operation failed. ${result.error}"
                 showNotification(errorMsg, NotificationType.ERROR)
-                CallToolResult(content = listOf(TextContent(errorMsg)))
+                CallToolResult(content = listOf(TextContent(errorMsg)), isError = true)
             }
         } catch (e: Exception) {
             showNotification("Error: Failed to process rename file request: ${e.message}", NotificationType.ERROR)
             thisLogger().error("Error processing rename file request: ${e.message}", e)
-            CallToolResult(content = listOf(TextContent("Error: Failed to process rename file request: ${e.message}")))
+            CallToolResult(
+                content = listOf(TextContent("Error: Failed to process rename file request: ${e.message}")),
+                isError = true
+            )
         }
     }
 
