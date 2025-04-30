@@ -36,7 +36,7 @@ dependencies {
     testImplementation(libs.opentest4j)
 
     // MCP Kotlin SDK
-    implementation("io.modelcontextprotocol:kotlin-sdk:0.4.0")
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.5.0")
 
     // Ktor Server Dependencies for SSE
     val ktorVersion = "2.3.10" // Define Ktor version
