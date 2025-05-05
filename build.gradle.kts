@@ -39,7 +39,7 @@ dependencies {
     implementation("io.modelcontextprotocol:kotlin-sdk:0.4.0")
 
     // Ktor Server Dependencies for SSE
-    val ktorVersion = "2.3.10" // Define Ktor version
+    val ktorVersion = "3.1.3" // Define Ktor version
     implementation("io.ktor:ktor-server-core-jvm:$ktorVersion")
     implementation("io.ktor:ktor-server-cio-jvm:$ktorVersion") // CIO engine
     implementation("io.ktor:ktor-server-sse-jvm:$ktorVersion") // SSE support
